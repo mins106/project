@@ -7,18 +7,18 @@ const routes = [
   {
     path: "/main",
     name: "Main",
-    component: MainPage
+    component: MainPage,
   },
   {
     path: "/meals",
     name: "Meals",
-    component: MealsPage
+    component: MealsPage,
   },
   {
     path: "/timetable",
     name: "TimeTable",
-    component: TimeTablePage
-  }
+    component: TimeTablePage,
+  },
 ];
 
 const router = createRouter({

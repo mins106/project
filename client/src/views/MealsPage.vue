@@ -10,7 +10,9 @@
         </div>
       </div>
       <div class="right-links">
-        <router-link to="/main">홈</router-link> · <router-link to="/login">로그인</router-link> · <router-link to="/member">회원가입</router-link>
+        <router-link to="/main">홈</router-link> ·
+        <router-link to="/login">로그인</router-link> ·
+        <router-link to="/member">회원가입</router-link>
       </div>
     </div>
 
@@ -75,7 +77,9 @@ export default {
   methods: {
     async fetchMeals() {
       const from = this.formatDateForAPI(this.startDate);
-      const to = this.formatDateForAPI(new Date(this.startDate.getTime() + 6 * 86400000));
+      const to = this.formatDateForAPI(
+        new Date(this.startDate.getTime() + 6 * 86400000)
+      );
       const res = await fetch(`/api/meals/week?from=${from}&to=${to}`);
       const data = await res.json();
 
@@ -102,7 +106,9 @@ export default {
       const friday = new Date(monday);
       friday.setDate(monday.getDate() + 4);
 
-      return `${monday.getMonth() + 1}월 ${monday.getDate()}일 ~ ${friday.getMonth() + 1}월 ${friday.getDate()}일`;
+      return `${monday.getMonth() + 1}월 ${monday.getDate()}일 ~ ${
+        friday.getMonth() + 1
+      }월 ${friday.getDate()}일`;
     },
     changeWeek(offset) {
       // 현재 startDate 기준으로 월요일을 먼저 계산
