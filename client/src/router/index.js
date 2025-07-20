@@ -1,18 +1,24 @@
 import { createRouter, createWebHistory } from "vue-router";
 import MainPage from "@/views/MainPage.vue";
 import MealsPage from "@/views/MealsPage.vue";
+import TimeTablePage from "@/views/TimeTablePage.vue";
 
 const routes = [
   {
-    path: "/",
-    name: "MainPage",
-    component: MainPage,
+    path: "/main",
+    name: "Main",
+    component: MainPage
   },
   {
     path: "/meals",
     name: "Meals",
-    component: MealsPage,
+    component: MealsPage
   },
+  {
+    path: "/timetable",
+    name: "TimeTable",
+    component: TimeTablePage
+  }
 ];
 
 const router = createRouter({

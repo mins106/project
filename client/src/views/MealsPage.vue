@@ -10,7 +10,7 @@
         </div>
       </div>
       <div class="right-links">
-        홈 · <a href="#">로그인</a> · <a href="#">회원가입</a>
+        <router-link to="/main">홈</router-link> · <router-link to="/login">로그인</router-link> · <router-link to="/member">회원가입</router-link>
       </div>
     </div>
 
@@ -52,9 +52,14 @@
 export default {
   name: "MealsPage",
   data() {
+    const today = new Date();
+    const dayOfWeek = today.getDay(); // 0(일) ~ 6(토)
+    const monday = new Date(today);
+    monday.setDate(today.getDate() - ((dayOfWeek + 6) % 7)); // 가장 가까운 월요일
+
     return {
       meals: [],
-      startDate: new Date(),
+      startDate: monday, // 월요일로 고정
     };
   },
   created() {
@@ -70,14 +75,16 @@ export default {
   methods: {
     async fetchMeals() {
       const from = this.formatDateForAPI(this.startDate);
-      const to = this.formatDateForAPI(
-        new Date(this.startDate.getTime() + 6 * 86400000)
-      );
+      const to = this.formatDateForAPI(new Date(this.startDate.getTime() + 6 * 86400000));
       const res = await fetch(`/api/meals/week?from=${from}&to=${to}`);
       const data = await res.json();
-      this.meals = data;
 
-      console.log("받은 meals:", data);
+      if (Array.isArray(data)) {
+        this.meals = data;
+      } else {
+        console.error("급식 데이터 형식 오류:", data);
+        this.meals = [];
+      }
     },
     formatDateForAPI(date) {
       return date.toISOString().split("T")[0].replace(/-/g, "");
@@ -88,15 +95,23 @@ export default {
       return `${Number(m)}월 ${Number(d)}일`;
     },
     formatWeekRange(startDate) {
-      const endDate = new Date(startDate.getTime() + 6 * 86400000);
-      return `${startDate.getMonth() + 1}월 ${startDate.getDate()}일 ~ ${
-        endDate.getMonth() + 1
-      }월 ${endDate.getDate()}일`;
+      const dayOfWeek = startDate.getDay();
+      const monday = new Date(startDate);
+      monday.setDate(monday.getDate() - ((dayOfWeek + 6) % 7));
+
+      const friday = new Date(monday);
+      friday.setDate(monday.getDate() + 4);
+
+      return `${monday.getMonth() + 1}월 ${monday.getDate()}일 ~ ${friday.getMonth() + 1}월 ${friday.getDate()}일`;
     },
     changeWeek(offset) {
-      this.startDate = new Date(
-        this.startDate.getTime() + offset * 7 * 86400000
-      );
+      // 현재 startDate 기준으로 월요일을 먼저 계산
+      const dayOfWeek = this.startDate.getDay(); // 0: 일 ~ 6: 토
+      const monday = new Date(this.startDate);
+      monday.setDate(monday.getDate() - ((dayOfWeek + 6) % 7)); // 월요일로 보정
+
+      // offset 주 이동 후 새로운 월요일 계산
+      this.startDate = new Date(monday.getTime() + offset * 7 * 86400000);
       this.fetchMeals();
     },
     isWeekend(dateStr) {
@@ -104,7 +119,7 @@ export default {
         `${dateStr.slice(0, 4)}-${dateStr.slice(4, 6)}-${dateStr.slice(6, 8)}`
       );
       const day = date.getDay();
-      return day === 0 || day === 6; // 일요일(0), 토요일(6)
+      return day === 0 || day === 6;
     },
   },
 };
@@ -177,6 +192,10 @@ export default {
 }
 
 .main-nav a:hover {
+  text-decoration: underline;
+}
+
+.main-nav a.router-link-exact-active {
   text-decoration: underline;
 }
 

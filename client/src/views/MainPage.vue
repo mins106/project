@@ -10,7 +10,7 @@
         </div>
       </div>
       <div class="right-links">
-        홈 · <a href="#">로그인</a> · <a href="#">회원가입</a>
+        <router-link to="/main">홈</router-link> · <router-link to="/login">로그인</router-link> · <router-link to="/member">회원가입</router-link>
       </div>
     </div>
 
