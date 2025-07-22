@@ -5,7 +5,7 @@ import TimeTablePage from "@/views/TimeTablePage.vue";
 
 const routes = [
   {
-    path: "/main",
+    path: "/",
     name: "Main",
     component: MainPage,
   },

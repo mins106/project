@@ -1,57 +1,44 @@
 const express = require('express');
 const router = express.Router();
-const Comcigan = require('comcigan-parser');
+const Timetable = require('comcigan-parser');
 
-const comcigan = new Comcigan();
-
-let schoolId = null;
-let schoolSet = false;
-
-// 날짜 파싱 유틸
-function parseDateString(yyyymmdd) {
-  const y = parseInt(yyyymmdd.slice(0, 4), 10);
-  const m = parseInt(yyyymmdd.slice(4, 6), 10) - 1;
-  const d = parseInt(yyyymmdd.slice(6, 8), 10);
-  return new Date(y, m, d);
-}
+const timetable = new Timetable();
+let isReady = false;
 
 router.get('/', async (req, res) => {
   const { grade, classNum, date } = req.query;
+  if (!grade || !classNum || !date)
+    return res.status(400).json({ error: 'grade, classNum, date는 필수입니다.' });
 
-  if (!grade || !classNum || !date) {
-    return res.status(400).json({ error: "grade, classNum, date는 필수입니다." });
-  }
-
-  const parsedGrade = parseInt(grade, 10);
-  const parsedClass = parseInt(classNum, 10);
-  const parsedDate = parseDateString(date);
-  const weekday = parsedDate.getDay(); // 0(일)~6(토)
-
-  if (weekday === 0 || weekday === 6) {
-    return res.json({ timetable: [] }); // 주말은 공강
-  }
+  const parsedDate = new Date(`${date.slice(0, 4)}-${date.slice(4, 6)}-${date.slice(6, 8)}`);
+  const weekday = parsedDate.getDay();
+  if (weekday === 0 || weekday === 6)
+    return res.json({ timetable: [], message: '주말에는 수업이 없습니다.' });
 
   try {
-    if (!schoolSet) {
-      schoolId = await comcigan.searchSchool("동백중학교");
-      if (!schoolId) throw new Error("학교 ID를 찾을 수 없습니다.");
-      await comcigan.setSchool(schoolId);
-      schoolSet = true;
+    if (!isReady) {
+      await timetable.init({ cache: 1000 * 60 * 10 });
+
+      // ⬇ 동백중학교 코드 직접 지정
+      const dongbaekCode = 64562;
+      timetable.setSchool(dongbaekCode);
+
+      isReady = true;
     }
 
-    const fullTimetable = await comcigan.getTimetable(); // 전체 시간표
-    const weekTimetable = fullTimetable?.[parsedGrade]?.[parsedClass];
+    const full = await timetable.getTimetable();
+    const todaySubjects = full[parseInt(grade)][parseInt(classNum)][weekday - 1] || [];
 
-    if (!weekTimetable) {
-      return res.json({ timetable: [] });
+    if (todaySubjects.length === 0) {
+      return res.json({ timetable: [], message: '오늘은 수업이 없어요.' });
     }
 
-    const todaySubjects = weekTimetable[weekday - 1]; // 월~금 (0~4)
-
-    res.json({ timetable: todaySubjects || [] });
+    res.json({
+      timetable: todaySubjects.map(x => x.subject),
+    });
   } catch (err) {
-    console.error("시간표 가져오기 실패:", err);
-    res.status(500).json({ error: "시간표를 가져오는 중 오류가 발생했습니다." });
+    console.error('시간표 가져오기 실패:', err);
+    res.status(500).json({ error: '시간표 가져오기 실패' });
   }
 });
 

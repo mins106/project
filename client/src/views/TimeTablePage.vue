@@ -15,7 +15,6 @@
       </div>
     </div>
 
-    <!-- 보라색 네비게이션 메뉴 -->
     <nav class="main-nav">
       <router-link to="/meals">급식</router-link>
       <router-link to="/timetable">시간표</router-link>
@@ -23,52 +22,39 @@
       <router-link to="/board">자유게시판</router-link>
     </nav>
 
-    <!-- 학년 / 반 선택 UI -->
-    <div class="dropdowns">
-      <div class="dropdown-box">
+    <div class="selector-wrap">
+      <div class="select-box">
         <label>학년</label>
-        <select v-model="grade" @change="onGradeClassChange">
-          <option disabled value="">학년 선택</option>
-          <option v-for="g in grades" :key="g" :value="g">{{ g }}학년</option>
+        <select v-model="grade" @change="fetchWeekTimetable">
+          <option v-for="g in [1, 2, 3]" :key="g" :value="g">{{ g }}학년</option>
         </select>
       </div>
-
-      <div class="dropdown-box">
+      <div class="select-box">
         <label>반</label>
-        <select
-          v-model="classNum"
-          @change="onGradeClassChange"
-          :disabled="!grade"
-        >
-          <option disabled value="">반 선택</option>
-          <option v-for="c in classOptions" :key="c" :value="c">
-            {{ c }}반
-          </option>
+        <select v-model="classNum" @change="fetchWeekTimetable">
+          <option v-for="n in getClassCount(grade)" :key="n" :value="n">{{ n }}반</option>
         </select>
       </div>
     </div>
 
-    <!-- 날짜 네비게이션 -->
-    <div class="date-nav">
-      <button class="arrow-btn" @click="changeDate(-1)">←</button>
-      <span class="date-text">{{ formatDate(currentDate) }}</span>
-      <button class="arrow-btn" @click="changeDate(1)">→</button>
-    </div>
-
-    <!-- 시간표 테이블 -->
-    <table class="timetable-table">
+    <table class="weekly-timetable">
+      <thead>
+        <tr>
+          <th>교시</th>
+          <th v-for="(day, idx) in weekdays" :key="idx">
+            {{ formatDate(weekStartDate, idx) }}<br />({{ day }})
+          </th>
+        </tr>
+      </thead>
       <tbody>
-        <tr v-for="(subject, index) in timetable" :key="index">
-          <td>{{ index + 1 }}</td>
-          <td>{{ subject || "" }}</td>
+        <tr v-for="period in 7" :key="period">
+          <td class="period">{{ period }}</td>
+          <td v-for="dayIndex in 5" :key="dayIndex">
+            {{ timetable[dayIndex - 1][period - 1] || '' }}
+          </td>
         </tr>
       </tbody>
     </table>
-
-    <!-- 조건 메시지 -->
-    <div v-if="noTimetableMessage" class="timetable-message">
-      {{ noTimetableMessage }}
-    </div>
   </div>
 </template>
 
@@ -77,89 +63,60 @@ export default {
   name: "TimeTablePage",
   data() {
     return {
-      grade: "",
-      classNum: "",
-      grades: [1, 2, 3],
-      classesByGrade: {
-        1: Array.from({ length: 13 }, (_, i) => i + 1),
-        2: Array.from({ length: 13 }, (_, i) => i + 1),
-        3: Array.from({ length: 11 }, (_, i) => i + 1),
-      },
-      currentDate: new Date(),
-      timetable: [],
-      noTimetableMessage: "",
+      grade: 1,
+      classNum: 1,
+      weekStartDate: this.getMonday(new Date()),
+      timetable: [[], [], [], [], []],
+      weekdays: ['월', '화', '수', '목', '금']
     };
   },
-  computed: {
-    classOptions() {
-      return this.classesByGrade[this.grade] || [];
-    },
-  },
-  created() {
-    this.fetchTimetable();
-  },
   methods: {
-    async fetchTimetable() {
+    getClassCount(grade) {
+      if (grade === 3) return 11;
+      if (grade === 1 || grade === 2) return 13;
+      return 0;
+    },
+    getMonday(d) {
+      const date = new Date(d);
+      const day = date.getDay();
+      const diff = date.getDate() - day + (day === 0 ? -6 : 1);
+      return new Date(date.setDate(diff));
+    },
+    formatDate(start, offset) {
+      const d = new Date(start);
+      d.setDate(d.getDate() + offset);
+      return `${d.getMonth() + 1}.${String(d.getDate()).padStart(2, '0')}`;
+    },
+    async fetchWeekTimetable() {
       if (!this.grade || !this.classNum) return;
-
-      const ymd = this.formatYMD(this.currentDate);
-      const day = this.currentDate.getDay(); // 0:일 ~ 6:토
-
-      if (day === 0 || day === 6) {
-        this.timetable = Array(7).fill("");
-        this.noTimetableMessage = "오늘은 주말이라 수업이 없어요";
-        return;
-      }
-
-      try {
-        const res = await fetch(
-          `/api/timetable?grade=${this.grade}&classNum=${this.classNum}&date=${ymd}`
+      const promises = [];
+      for (let i = 0; i < 5; i++) {
+        const date = new Date(this.weekStartDate);
+        date.setDate(date.getDate() + i);
+        const ymd = date.toISOString().slice(0, 10).replace(/-/g, '');
+        promises.push(
+          fetch(`/api/timetable?grade=${this.grade}&classNum=${this.classNum}&date=${ymd}`)
+            .then(res => res.json())
+            .then(data => data.timetable || [])
         );
-        const data = await res.json();
-
-        const subjects = data.timetable || [];
-
-        if (subjects.length === 0 || subjects.every((s) => !s)) {
-          this.noTimetableMessage = "오늘은 수업이 없어요";
-        } else {
-          this.noTimetableMessage = "";
-        }
-
-        this.timetable = subjects.concat(Array(7).fill("")).slice(0, 7);
-      } catch (err) {
-        console.error("시간표 불러오기 실패:", err);
-        this.timetable = Array(7).fill("");
-        this.noTimetableMessage = "시간표 정보를 불러오지 못했어요";
       }
-    },
-    onGradeClassChange() {
-      if (!this.classOptions.includes(Number(this.classNum))) {
-        this.classNum = ""; // 학년 바뀌면 기존 반 초기화
-      }
-      this.fetchTimetable();
-    },
-    changeDate(offset) {
-      const newDate = new Date(this.currentDate);
-      newDate.setDate(this.currentDate.getDate() + offset);
-      this.currentDate = newDate;
-      this.fetchTimetable();
-    },
-    formatDate(date) {
-      const m = String(date.getMonth() + 1).padStart(2, "0");
-      const d = String(date.getDate()).padStart(2, "0");
-      return `${m}.${d}`;
-    },
-    formatYMD(date) {
-      const y = date.getFullYear();
-      const m = String(date.getMonth() + 1).padStart(2, "0");
-      const d = String(date.getDate()).padStart(2, "0");
-      return `${y}${m}${d}`;
-    },
+      this.timetable = await Promise.all(promises);
+    }
   },
+  mounted() {
+    this.fetchWeekTimetable();
+  }
 };
 </script>
 
 <style scoped>
+.timetable-page {
+  font-family: "Noto Sans KR", sans-serif;
+  background: #f8f9fc;
+  min-height: 100vh;
+  padding-bottom: 2rem;
+}
+
 .top-bar {
   display: flex;
   justify-content: space-between;
@@ -227,105 +184,62 @@ export default {
   text-decoration: underline;
 }
 
-.dropdowns {
+.selector-wrap {
   display: flex;
   justify-content: center;
   gap: 2rem;
-  margin: 1.5rem 0 1rem;
+  margin: 1.5rem 0;
 }
 
-.dropdown-box {
+.select-box {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  font-weight: 500;
   font-size: 0.95rem;
-}
-
-.dropdown-box label {
-  margin-bottom: 0.3rem;
-  font-size: 0.9rem;
   font-weight: 500;
-  color: #333;
 }
 
-.dropdown-box select {
+.select-box select {
   padding: 0.5rem 1rem;
   border-radius: 8px;
   border: 1.5px solid #ccc;
+  background: #fff;
   font-size: 1rem;
-  background-color: #f9f9f9;
+  margin-top: 0.5rem;
   transition: border 0.2s ease;
 }
 
-.dropdown-box select:focus {
+.select-box select:focus {
   border-color: #5a2fc9;
   outline: none;
 }
 
-.date-nav {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 1.2rem;
-  margin: 1.5rem 0;
-  font-size: 1.1rem;
-}
-
-.arrow-btn {
-  border: none;
-  background-color: #5a2fc9;
-  color: white;
-  padding: 0.4rem 0.9rem;
-  border-radius: 5px;
-  font-weight: bold;
-  cursor: pointer;
-  transition: background 0.2s ease;
-}
-
-.arrow-btn:hover {
-  background-color: #4321a0;
-}
-
-.timetable-table {
-  width: 90%;
-  max-width: 500px;
+.weekly-timetable {
+  width: 95%;
   margin: 0 auto;
   border-collapse: collapse;
   background: white;
-  border-radius: 8px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  border-radius: 10px;
   overflow: hidden;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
 }
 
-.timetable-table td {
-  border-bottom: 1px solid #eee;
-  padding: 14px 18px;
-  font-size: 1rem;
+.weekly-timetable th,
+.weekly-timetable td {
+  border: 1px solid #ddd;
+  padding: 0.6rem;
   text-align: center;
+  font-size: 1rem;
 }
 
-.timetable-table tr:last-child td {
-  border-bottom: none;
-}
-
-.timetable-table td:nth-child(1) {
+.weekly-timetable th {
+  background: #f3f3f3;
   font-weight: bold;
-  color: #555;
-  background-color: #f7f7f7;
+  color: #444;
 }
 
-.no-timetable {
-  text-align: center;
-  font-size: 1rem;
-  color: #888;
-  margin-top: 2rem;
-}
-
-.timetable-message {
-  text-align: center;
-  margin-top: 1rem;
+.period {
+  background-color: #f8f8f8;
+  font-weight: 600;
   color: #666;
-  font-size: 1rem;
 }
 </style>
