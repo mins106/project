@@ -3,6 +3,7 @@ import MainPage from "@/views/MainPage.vue";
 import MealsPage from "@/views/MealsPage.vue";
 import TimeTablePage from "@/views/TimeTablePage.vue";
 import CalendarPage from "@/views/CalendarPage.vue";
+import LoginPage from "@/views/LoginPage.vue";
 
 const routes = [
   {
@@ -25,6 +26,11 @@ const routes = [
     name: "Calendar",
     component: CalendarPage,
   },
+  {
+    path: "/login",
+    name: "Login",
+    component: LoginPage
+  }
 ];
 
 const router = createRouter({
