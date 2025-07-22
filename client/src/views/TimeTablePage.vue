@@ -9,7 +9,7 @@
         </div>
       </div>
       <div class="right-links">
-        <router-link to="/main">홈</router-link> ·
+        <router-link to="/">홈</router-link> ·
         <router-link to="/login">로그인</router-link> ·
         <router-link to="/member">회원가입</router-link>
       </div>
@@ -26,13 +26,17 @@
       <div class="select-box">
         <label>학년</label>
         <select v-model="grade" @change="fetchWeekTimetable">
-          <option v-for="g in [1, 2, 3]" :key="g" :value="g">{{ g }}학년</option>
+          <option v-for="g in [1, 2, 3]" :key="g" :value="g">
+            {{ g }}학년
+          </option>
         </select>
       </div>
       <div class="select-box">
         <label>반</label>
         <select v-model="classNum" @change="fetchWeekTimetable">
-          <option v-for="n in getClassCount(grade)" :key="n" :value="n">{{ n }}반</option>
+          <option v-for="n in getClassCount(grade)" :key="n" :value="n">
+            {{ n }}반
+          </option>
         </select>
       </div>
     </div>
@@ -50,7 +54,7 @@
         <tr v-for="period in 7" :key="period">
           <td class="period">{{ period }}</td>
           <td v-for="dayIndex in 5" :key="dayIndex">
-            {{ timetable[dayIndex - 1][period - 1] || '' }}
+            {{ timetable[dayIndex - 1][period - 1] || "" }}
           </td>
         </tr>
       </tbody>
@@ -67,7 +71,7 @@ export default {
       classNum: 1,
       weekStartDate: this.getMonday(new Date()),
       timetable: [[], [], [], [], []],
-      weekdays: ['월', '화', '수', '목', '금']
+      weekdays: ["월", "화", "수", "목", "금"],
     };
   },
   methods: {
@@ -85,7 +89,7 @@ export default {
     formatDate(start, offset) {
       const d = new Date(start);
       d.setDate(d.getDate() + offset);
-      return `${d.getMonth() + 1}.${String(d.getDate()).padStart(2, '0')}`;
+      return `${d.getMonth() + 1}.${String(d.getDate()).padStart(2, "0")}`;
     },
     async fetchWeekTimetable() {
       if (!this.grade || !this.classNum) return;
@@ -93,19 +97,21 @@ export default {
       for (let i = 0; i < 5; i++) {
         const date = new Date(this.weekStartDate);
         date.setDate(date.getDate() + i);
-        const ymd = date.toISOString().slice(0, 10).replace(/-/g, '');
+        const ymd = date.toISOString().slice(0, 10).replace(/-/g, "");
         promises.push(
-          fetch(`/api/timetable?grade=${this.grade}&classNum=${this.classNum}&date=${ymd}`)
-            .then(res => res.json())
-            .then(data => data.timetable || [])
+          fetch(
+            `/api/timetable?grade=${this.grade}&classNum=${this.classNum}&date=${ymd}`
+          )
+            .then((res) => res.json())
+            .then((data) => data.timetable || [])
         );
       }
       this.timetable = await Promise.all(promises);
-    }
+    },
   },
   mounted() {
     this.fetchWeekTimetable();
-  }
+  },
 };
 </script>
 

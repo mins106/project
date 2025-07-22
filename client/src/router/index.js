@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from "vue-router";
 import MainPage from "@/views/MainPage.vue";
 import MealsPage from "@/views/MealsPage.vue";
 import TimeTablePage from "@/views/TimeTablePage.vue";
+import CalendarPage from "@/views/CalendarPage.vue";
 
 const routes = [
   {
@@ -18,6 +19,11 @@ const routes = [
     path: "/timetable",
     name: "TimeTable",
     component: TimeTablePage,
+  },
+  {
+    path: "/calendar",
+    name: "Calendar",
+    component: CalendarPage,
   },
 ];
 
