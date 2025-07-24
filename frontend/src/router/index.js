@@ -30,13 +30,13 @@ const routes = [
   {
     path: "/login",
     name: "Login",
-    component: LoginPage
+    component: LoginPage,
   },
   {
     path: "/signup",
     name: "SignUp",
-    component: SignUpPage
-  }
+    component: SignUpPage,
+  },
 ];
 
 const router = createRouter({
