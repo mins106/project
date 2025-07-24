@@ -32,6 +32,7 @@
 
 <script>
 export default {
+    name: "LoginPage",
     data() {
         return {
             userId: '',
