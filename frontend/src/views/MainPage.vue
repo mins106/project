@@ -81,7 +81,7 @@ export default {
 
 <style scoped>
 .main-page {
-  background-color: #f9f9f9;
+  background: #f8f9fc;
   font-family: "Noto Sans KR", sans-serif;
   margin: 0;
 }
@@ -135,9 +135,12 @@ export default {
   background-color: #5a2fc9;
   padding: 0.8rem 0;
   text-align: center;
-  position: sticky; /* 👈 상단 고정 */
-  top: 0; /* 화면 맨 위에 붙이기 */
-  z-index: 1000; /* 다른 요소 위에 보이도록 */
+  position: sticky;
+  /* 👈 상단 고정 */
+  top: 0;
+  /* 화면 맨 위에 붙이기 */
+  z-index: 1000;
+  /* 다른 요소 위에 보이도록 */
 }
 
 .main-nav a {
@@ -206,19 +209,24 @@ export default {
 
 .card-list {
   display: flex;
-  flex-wrap: nowrap; /* 줄바꿈 없이 가로로 */
+  flex-wrap: nowrap;
+  /* 줄바꿈 없이 가로로 */
   gap: 1.2rem;
   padding-top: 1rem;
-  overflow-x: auto; /* 가로 스크롤 가능 */
+  overflow-x: auto;
+  /* 가로 스크롤 가능 */
   padding-bottom: 1rem;
 }
+
 .card {
   background: white;
   border-radius: 12px;
   padding: 1rem;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-  min-width: 250px; /* 고정 너비 */
-  flex-shrink: 0; /* 축소되지 않게 */
+  min-width: 250px;
+  /* 고정 너비 */
+  flex-shrink: 0;
+  /* 축소되지 않게 */
 }
 
 .card h4 {
@@ -259,6 +267,7 @@ export default {
   text-decoration: none;
   font-weight: bold;
 }
+
 .more-link:hover {
   text-decoration: underline;
 }

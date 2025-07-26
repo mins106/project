@@ -179,7 +179,7 @@ export default {
 <style scoped>
 .calendar-page {
   font-family: "Noto Sans KR", sans-serif;
-  background-color: #f2f6ff;
+  background: #f8f9fc;
   min-height: 100vh;
   padding-bottom: 3rem;
 }

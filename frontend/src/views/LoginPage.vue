@@ -72,14 +72,24 @@ export default {
         });
 
         const data = await res.json();
+        console.log("로그인 응답:", data);
 
         if (!res.ok) {
           this.errorMessage = data.message || "로그인 실패";
           return;
         }
 
+        // ✅ 사용자 정보 저장
+        localStorage.setItem(
+          "user",
+          JSON.stringify({
+            name: data.user.name,
+            studentId: data.user.userId,
+          })
+        );
+
         alert(`${data.user.name}님 환영합니다!`);
-        this.$router.push("/"); // 홈으로 이동 (또는 마이페이지 등)
+        this.$router.push("/"); // 홈으로 이동
       } catch (err) {
         this.errorMessage = "서버 연결에 실패했습니다.";
       }

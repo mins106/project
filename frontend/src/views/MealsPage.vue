@@ -134,7 +134,7 @@ export default {
 <style scoped>
 .meals-page {
   font-family: "Noto Sans KR", sans-serif;
-  background-color: #f2f6ff;
+  background: #f8f9fc;
   min-height: 100vh;
 }
 

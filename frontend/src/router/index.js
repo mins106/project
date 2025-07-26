@@ -5,6 +5,7 @@ import TimeTablePage from "@/views/TimeTablePage.vue";
 import CalendarPage from "@/views/CalendarPage.vue";
 import LoginPage from "@/views/LoginPage.vue";
 import SignUpPage from "@/views/SignUpPage.vue";
+import BoardPage from "@/views/BoardPage.vue";
 
 const routes = [
   {
@@ -36,6 +37,11 @@ const routes = [
     path: "/signup",
     name: "SignUp",
     component: SignUpPage,
+  },
+  {
+    path: "/board",
+    name: "Board",
+    component: BoardPage,
   },
 ];
 
