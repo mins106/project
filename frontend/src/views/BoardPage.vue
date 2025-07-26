@@ -40,21 +40,12 @@
 
     <!-- 검색창 -->
     <div class="search-box">
-      <input
-        v-model="searchKeyword"
-        type="text"
-        placeholder="검색어를 입력하세요"
-      />
+      <input v-model="searchKeyword" type="text" placeholder="검색어를 입력하세요" />
     </div>
 
     <!-- 카테고리 필터 -->
     <div class="category-filter">
-      <button
-        v-for="tag in tags"
-        :key="tag"
-        :class="{ active: selectedTag === tag }"
-        @click="selectTag(tag)"
-      >
+      <button v-for="tag in tags" :key="tag" :class="{ active: selectedTag === tag }" @click="selectTag(tag)">
         {{ tag }}
       </button>
     </div>
@@ -66,7 +57,8 @@
 
     <!-- 게시글 목록 -->
     <div class="post-list">
-      <div v-for="post in filteredPosts" :key="post.id" class="post-card">
+      <div v-for="post in filteredPosts" :key="post.id" class="post-card" @click="$router.push(`/board/${post.id}`)"
+        style="cursor: pointer">
         <div class="post-header">
           <div class="best-badge" v-if="post.isBest">BEST</div>
           <div class="post-author">👤 {{ post.author }}</div>
@@ -90,35 +82,10 @@ export default {
   data() {
     return {
       user: null,
-      tags: ["모집", "공지", "홍보", "질문"],
+      tags: ["모집", "공지", "홍보", "질문", "기타"],
       selectedTag: "",
       searchKeyword: "",
-      posts: [
-        {
-          id: 1,
-          author: "○○○",
-          title: "과학 토론 동아리 모집",
-          content:
-            "과학에 관심 있는 친구들! 이 동아리에 참여해서 같이 이야기 나눠 봅시다.",
-          tag: "모집",
-          likes: 15,
-          comments: 5,
-          views: 0,
-          isBest: true,
-        },
-        {
-          id: 2,
-          author: "○○○",
-          title: "작은 음악회 공고",
-          content: "학생들이 만드는 공연!! 7월 11일 시청각실로 보러오세요",
-          tag: "공지",
-          likes: 13,
-          comments: 6,
-          views: 0,
-          isBest: true,
-        },
-        // 나머지 더미 데이터 추가 가능
-      ],
+      posts: [],
     };
   },
   mounted() {
@@ -126,6 +93,8 @@ export default {
     if (storedUser) {
       this.user = JSON.parse(storedUser);
     }
+
+    this.fetchPosts(); // ← 게시글 불러오기
   },
   computed: {
     filteredPosts() {
@@ -148,6 +117,15 @@ export default {
   methods: {
     selectTag(tag) {
       this.selectedTag = tag;
+    },
+    async fetchPosts() {
+      try {
+        const res = await fetch("/api/posts");
+        const data = await res.json();
+        this.posts = data;
+      } catch (err) {
+        console.error("게시글 불러오기 실패:", err);
+      }
     },
   },
 };

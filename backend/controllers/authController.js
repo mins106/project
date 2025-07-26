@@ -1,4 +1,4 @@
-const db = require('../db/datebase');
+const db = require('../db/database');
 
 // 회원가입 처리
 exports.signUp = async (req, res) => {

@@ -10,7 +10,7 @@ const db = new sqlite3.Database(path.join(__dirname, 'mydb.sqlite3'), (err) => {
   }
 });
 
-// ⭐ users 테이블이 없으면 자동으로 생성됨
+// users 테이블 생성
 db.serialize(() => {
   db.run(`
     CREATE TABLE IF NOT EXISTS users (
@@ -19,6 +19,23 @@ db.serialize(() => {
       name TEXT NOT NULL,
       user_id TEXT NOT NULL UNIQUE,
       password TEXT NOT NULL
+    )
+  `);
+
+  // ✅ posts 테이블 생성
+  db.run(`
+    CREATE TABLE IF NOT EXISTS posts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      content TEXT NOT NULL,
+      tag TEXT NOT NULL,
+      author TEXT NOT NULL,
+      studentId TEXT NOT NULL,
+      createdAt TEXT NOT NULL,
+      likes INTEGER DEFAULT 0,
+      comments INTEGER DEFAULT 0,
+      views INTEGER DEFAULT 0,
+      isBest INTEGER DEFAULT 0
     )
   `);
 });
