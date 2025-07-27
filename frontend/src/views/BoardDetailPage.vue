@@ -1,92 +1,273 @@
 <template>
-  <div class="detail-page">
-    <h2>{{ post.title }}</h2>
-    <p><strong>작성자:</strong> {{ post.author }} ({{ post.studentId }})</p>
-    <p><strong>내용:</strong></p>
-    <div class="content">{{ post.content }}</div>
+    <div v-if="post.title" class="detail-page">
+        <div class="back" @click="$router.go(-1)">←</div>
+        <div class="post-card">
+            <!-- 태그 & 작성자 -->
+            <div class="post-meta">
+                <span class="post-tag">#{{ post.tag }}</span>
+                <span class="post-author">{{ post.author }} ({{ post.studentId }})</span>
+            </div>
 
-    <!-- 좋아요/싫어요 버튼 -->
-    <div class="buttons">
-      <button @click="likePost">👍 {{ post.likes }}</button>
-      <button @click="dislikePost">👎 {{ post.dislikes }}</button>
+            <!-- 제목 -->
+            <h1 class="post-title">{{ post.title }}</h1>
+
+            <!-- 본문 -->
+            <div class="post-content">{{ post.content }}</div>
+
+            <!-- 좋아요 / 싫어요 버튼 -->
+            <div class="reaction-buttons">
+                <button @click="toggleLike" :class="{ active: liked }">👍 {{ post.likes || 0 }}</button>
+                <button @click="toggleDislike" :class="{ active: disliked }">👎 {{ post.dislikes || 0 }}</button>
+            </div>
+
+            <!-- 댓글 영역 -->
+            <div class="comments">
+                <h2>댓글</h2>
+                <div v-if="post.comments && post.comments.length">
+                    <div v-for="(c, i) in post.comments" :key="i" class="comment">
+                        {{ c.text }}
+                    </div>
+                </div>
+                <div v-else class="no-comments">아직 댓글이 없습니다.</div>
+
+                <div class="comment-form">
+                    <textarea v-model="newComment" placeholder="댓글을 입력하세요"></textarea>
+                    <button @click="submitComment">등록</button>
+                </div>
+            </div>
+        </div>
     </div>
 
-    <!-- 댓글 목록 -->
-    <div class="comments">
-      <h3>댓글</h3>
-      <div v-for="c in post.comments" :key="c.id" class="comment">{{ c.text }}</div>
-    </div>
-
-    <!-- 댓글 입력 -->
-    <div class="comment-form">
-      <textarea v-model="newComment" placeholder="댓글을 입력하세요."></textarea>
-      <button @click="submitComment">등록</button>
-    </div>
-  </div>
+    <div v-else class="loading">불러오는 중...</div>
 </template>
 
 <script>
 export default {
-  data() {
-    return {
-      post: {},
-      newComment: "",
-    };
-  },
-  mounted() {
-    const postId = this.$route.params.id;
-    fetch(`http://localhost:3000/api/posts/${postId}`)
-      .then((res) => res.json())
-      .then((data) => {
-        this.post = data;
-      });
-  },
-  methods: {
-    likePost() {
-      fetch(`http://localhost:3000/api/posts/${this.post.id}/like`, { method: 'POST' })
-        .then(() => this.post.likes++);
+    name: "BoardDetailPage",
+    data() {
+        return {
+            post: {},
+            newComment: "",
+            liked: false,
+            disliked: false,
+            originalLiked: false,
+            originalDisliked: false
+        };
     },
-    dislikePost() {
-      fetch(`http://localhost:3000/api/posts/${this.post.id}/dislike`, { method: 'POST' })
-        .then(() => this.post.dislikes++);
+    mounted() {
+        const postId = this.$route.params.id;
+        fetch(`http://localhost:3000/api/posts/${postId}`)
+            .then((res) => res.json())
+            .then((data) => {
+                this.post = {
+                    likes: 0,
+                    dislikes: 0,
+                    comments: [],
+                    ...data,
+                };
+                this.liked = localStorage.getItem(`liked_${postId}`) === 'true';
+                this.disliked = localStorage.getItem(`disliked_${postId}`) === 'true';
+                this.originalLiked = this.liked;
+                this.originalDisliked = this.disliked;
+            })
+            .catch((err) => {
+                console.error("글 불러오기 실패:", err);
+            });
     },
-    submitComment() {
-      if (!this.newComment.trim()) return;
+    beforeRouteLeave(to, from, next) {
+        const id = this.post.id;
+        const promises = [];
 
-      fetch(`http://localhost:3000/api/posts/${this.post.id}/comments`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: this.newComment }),
-      })
-        .then(() => {
-          this.post.comments.push({ text: this.newComment });
-          this.newComment = '';
+        const likeChanged = this.originalLiked !== this.liked;
+        const dislikeChanged = this.originalDisliked !== this.disliked;
+
+        if (likeChanged) {
+            const endpoint = this.liked ? 'like' : 'unlike';
+            promises.push(fetch(`http://localhost:3000/api/posts/${id}/${endpoint}`, { method: 'POST' }));
+        }
+
+        if (dislikeChanged) {
+            const endpoint = this.disliked ? 'dislike' : 'undislike';
+            promises.push(fetch(`http://localhost:3000/api/posts/${id}/${endpoint}`, { method: 'POST' }));
+        }
+
+        Promise.all(promises).finally(() => {
+            if (likeChanged || dislikeChanged) {
+                // 🔥 여기!
+                sessionStorage.setItem('post_updated', 'true');
+            }
+            next();
         });
     },
-  },
+    methods: {
+        toggleLike() {
+            if (this.liked) {
+                this.post.likes--;
+                this.liked = false;
+                localStorage.setItem(`liked_${this.post.id}`, 'false');
+            } else {
+                this.post.likes++;
+                this.liked = true;
+                localStorage.setItem(`liked_${this.post.id}`, 'true');
+                if (this.disliked) {
+                    this.post.dislikes--;
+                    this.disliked = false;
+                    localStorage.setItem(`disliked_${this.post.id}`, 'false');
+                }
+            }
+        },
+        toggleDislike() {
+            if (this.disliked) {
+                this.post.dislikes--;
+                this.disliked = false;
+                localStorage.setItem(`disliked_${this.post.id}`, 'false');
+            } else {
+                this.post.dislikes++;
+                this.disliked = true;
+                localStorage.setItem(`disliked_${this.post.id}`, 'true');
+                if (this.liked) {
+                    this.post.likes--;
+                    this.liked = false;
+                    localStorage.setItem(`liked_${this.post.id}`, 'false');
+                }
+            }
+        },
+        submitComment() {
+            if (!this.newComment.trim()) return;
+            fetch(`http://localhost:3000/api/posts/${this.post.id}/comments`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ text: this.newComment }),
+            }).then(() => {
+                this.post.comments.push({ text: this.newComment });
+                this.newComment = "";
+            });
+        },
+    },
 };
 </script>
 
 <style scoped>
 .detail-page {
-  max-width: 700px;
-  margin: auto;
-  padding: 1rem;
-  background: #fff;
-  border-radius: 8px;
+    max-width: 750px;
+    margin: 2rem auto;
+    padding: 1rem;
 }
-.content {
-  margin: 1rem 0;
-  white-space: pre-line;
+
+.back {
+    position: fixed;
+    top: 24px;
+    left: 20px;
+    font-size: 24px;
+    cursor: pointer;
 }
-.buttons button {
-  margin-right: 1rem;
+
+.post-card {
+    background-color: #ffffff;
+    border-radius: 16px;
+    padding: 2rem;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
 }
+
+.post-meta {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.9rem;
+    margin-bottom: 0.5rem;
+    color: #666;
+}
+
+.post-tag {
+    background-color: #f0f0f5;
+    padding: 0.3rem 0.7rem;
+    border-radius: 999px;
+    font-weight: bold;
+}
+
+.post-title {
+    font-size: 1.8rem;
+    font-weight: 700;
+    margin: 0.5rem 0 1rem;
+    color: #333;
+}
+
+.post-content {
+    font-size: 1.05rem;
+    white-space: pre-line;
+    line-height: 1.6;
+    margin-bottom: 1.5rem;
+    color: #444;
+}
+
+.reaction-buttons {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 2rem;
+}
+
+.reaction-buttons button {
+    background-color: #ece6ff;
+    border: none;
+    border-radius: 6px;
+    padding: 0.5rem 1.2rem;
+    font-size: 1rem;
+    cursor: pointer;
+}
+
+button.active {
+    background-color: #d1c4e9;
+}
+
 .comments {
-  margin-top: 2rem;
+    border-top: 1px solid #ccc;
+    padding-top: 1.5rem;
 }
+
+.comments h2 {
+    font-size: 1.3rem;
+    margin-bottom: 1rem;
+    color: #4a148c;
+}
+
+.comment {
+    background-color: #f8f8ff;
+    border-radius: 6px;
+    padding: 0.6rem 1rem;
+    margin-bottom: 0.5rem;
+}
+
+.no-comments {
+    color: #888;
+    margin-bottom: 1rem;
+}
+
 .comment-form textarea {
-  width: 100%;
-  min-height: 60px;
+    width: 100%;
+    min-height: 70px;
+    resize: none;
+    border-radius: 6px;
+    border: 1px solid #ccc;
+    padding: 0.8rem;
+    margin-top: 1rem;
+}
+
+.comment-form button {
+    margin-top: 0.8rem;
+    background-color: #7b1fa2;
+    color: white;
+    padding: 0.5rem 1.5rem;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.comment-form button:hover {
+    background-color: #6a1b9a;
+}
+
+.loading {
+    text-align: center;
+    padding: 3rem;
+    color: #999;
 }
 </style>

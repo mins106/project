@@ -94,7 +94,12 @@ export default {
       this.user = JSON.parse(storedUser);
     }
 
-    this.fetchPosts(); // ← 게시글 불러오기
+    if (sessionStorage.getItem('post_updated') === 'true') {
+      this.fetchPosts(); // 또는 this.loadPosts() 등 데이터 다시 불러오기
+      sessionStorage.removeItem('post_updated');
+    } else {
+      this.fetchPosts();
+    }
   },
   computed: {
     filteredPosts() {
@@ -127,6 +132,11 @@ export default {
         console.error("게시글 불러오기 실패:", err);
       }
     },
+  },
+  beforeRouteEnter(to, from, next) {
+    next((vm) => {
+      vm.fetchPosts();
+    });
   },
 };
 </script>

@@ -38,6 +38,14 @@ db.serialize(() => {
       isBest INTEGER DEFAULT 0
     )
   `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS comments (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  postId INTEGER,
+  text TEXT
+)
+  `);
 });
 
 module.exports = db;
