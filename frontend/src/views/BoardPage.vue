@@ -40,12 +40,21 @@
 
     <!-- 검색창 -->
     <div class="search-box">
-      <input v-model="searchKeyword" type="text" placeholder="검색어를 입력하세요" />
+      <input
+        v-model="searchKeyword"
+        type="text"
+        placeholder="검색어를 입력하세요"
+      />
     </div>
 
     <!-- 카테고리 필터 -->
     <div class="category-filter">
-      <button v-for="tag in tags" :key="tag" :class="{ active: selectedTag === tag }" @click="selectTag(tag)">
+      <button
+        v-for="tag in tags"
+        :key="tag"
+        :class="{ active: selectedTag === tag }"
+        @click="selectTag(tag)"
+      >
         {{ tag }}
       </button>
     </div>
@@ -57,8 +66,13 @@
 
     <!-- 게시글 목록 -->
     <div class="post-list">
-      <div v-for="post in filteredPosts" :key="post.id" class="post-card" @click="$router.push(`/board/${post.id}`)"
-        style="cursor: pointer">
+      <div
+        v-for="post in filteredPosts"
+        :key="post.id"
+        class="post-card"
+        @click="$router.push(`/board/${post.id}`)"
+        style="cursor: pointer"
+      >
         <div class="post-header">
           <div class="best-badge" v-if="post.isBest">BEST</div>
           <div class="post-author">👤 {{ post.author }}</div>
@@ -67,9 +81,9 @@
         <div class="post-title">{{ post.title }}</div>
         <div class="post-content">{{ post.content }}</div>
         <div class="post-footer">
-          <div class="icon">👍 {{ post.likes }}</div>
-          <div class="icon">💬 {{ post.comments }}</div>
-          <div class="icon">👁 {{ post.views }}</div>
+          <div class="icon">👍 {{ post.likes || 0 }}</div>
+          <div class="icon">💬 {{ post.comments || 0 }}</div>
+          <div class="icon">👎 {{ post.dislikes || 0 }}</div>
         </div>
       </div>
     </div>
@@ -94,19 +108,24 @@ export default {
       this.user = JSON.parse(storedUser);
     }
 
-    if (sessionStorage.getItem('post_updated') === 'true') {
+    if (sessionStorage.getItem("post_updated") === "true") {
       this.fetchPosts(); // 또는 this.loadPosts() 등 데이터 다시 불러오기
-      sessionStorage.removeItem('post_updated');
+      sessionStorage.removeItem("post_updated");
     } else {
       this.fetchPosts();
     }
   },
   computed: {
     filteredPosts() {
+      // 방어 코드: posts가 배열이 아닐 경우 빈 배열 반환
+      if (!Array.isArray(this.posts)) return [];
+
       let filtered = this.posts;
+
       if (this.selectedTag) {
         filtered = filtered.filter((p) => p.tag === this.selectedTag);
       }
+
       if (this.searchKeyword.trim()) {
         const keyword = this.searchKeyword.trim().toLowerCase();
         filtered = filtered.filter(
@@ -116,6 +135,7 @@ export default {
             p.author.toLowerCase().includes(keyword)
         );
       }
+
       return filtered;
     },
   },
@@ -127,7 +147,11 @@ export default {
       try {
         const res = await fetch("/api/posts");
         const data = await res.json();
-        this.posts = data;
+
+        console.log("🔥 받아온 게시글 목록:", data);
+
+        // 배열인지 확인 후 할당
+        this.posts = Array.isArray(data) ? data : data.posts;
       } catch (err) {
         console.error("게시글 불러오기 실패:", err);
       }
