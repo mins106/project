@@ -53,18 +53,6 @@ db.serialize(() => {
       FOREIGN KEY (postId) REFERENCES posts(id)
     )
   `);
-
-  // 누가 좋아요 눌렀는지 저장
-  db.run(`
-    CREATE TABLE IF NOT EXISTS votes (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      postId INTEGER NOT NULL,
-      userId TEXT NOT NULL,
-      voteType TEXT CHECK(voteType IN ('like', 'dislike')),
-      UNIQUE(postId, userId, voteType),
-      FOREIGN KEY(postId) REFERENCES posts(id)
-    );
-  `);
 });
 
 // ✅ 비동기 함수로 사용할 수 있게 promisify 적용

@@ -1,15 +1,15 @@
 const express = require('express');
 const router = express.Router();
-const db = require('../db/database');
+const db = require('../db/database'); // database.js 경로에 맞게 조정
 
 // 게시글 전체 목록 조회 (최신순)
 router.get('/', async (req, res) => {
   try {
-    const posts = await db.all(`
-      SELECT id, title, author, studentId, createdAt, tag, likes, dislikes, comments
+    const posts = await db.all(
+      `SELECT id, title, author, studentId, createdAt, tag, likes, dislikes, comments
       FROM posts
-      ORDER BY createdAt DESC
-    `);
+      ORDER BY createdAt DESC`
+    );
     res.json(posts);
   } catch (err) {
     res.status(500).json({ error: '게시글 목록 불러오기 실패' });
@@ -36,21 +36,8 @@ router.get('/:id', async (req, res) => {
 // 좋아요 증가
 router.post('/:id/like', async (req, res) => {
   const postId = req.params.id;
-  const { userId } = req.body;
-
   try {
-    const exists = await db.get(
-      'SELECT * FROM votes WHERE postId = ? AND userId = ? AND voteType = "like"',
-      [postId, userId]
-    );
-
-    if (exists) {
-      return res.status(400).json({ error: '이미 좋아요를 누른 상태입니다.' });
-    }
-
     await db.run('UPDATE posts SET likes = likes + 1 WHERE id = ?', [postId]);
-    await db.run('INSERT INTO votes (postId, userId, voteType) VALUES (?, ?, "like")', [postId, userId]);
-
     res.sendStatus(200);
   } catch (err) {
     res.status(500).json({ error: '좋아요 실패' });
@@ -60,21 +47,8 @@ router.post('/:id/like', async (req, res) => {
 // 좋아요 취소
 router.post('/:id/unlike', async (req, res) => {
   const postId = req.params.id;
-  const { userId } = req.body;
-
   try {
-    const exists = await db.get(
-      'SELECT * FROM votes WHERE postId = ? AND userId = ? AND voteType = "like"',
-      [postId, userId]
-    );
-
-    if (!exists) {
-      return res.status(400).json({ error: '좋아요를 누른 기록이 없습니다.' });
-    }
-
     await db.run('UPDATE posts SET likes = MAX(likes - 1, 0) WHERE id = ?', [postId]);
-    await db.run('DELETE FROM votes WHERE postId = ? AND userId = ? AND voteType = "like"', [postId, userId]);
-
     res.sendStatus(200);
   } catch (err) {
     res.status(500).json({ error: '좋아요 취소 실패' });
@@ -84,21 +58,8 @@ router.post('/:id/unlike', async (req, res) => {
 // 싫어요 증가
 router.post('/:id/dislike', async (req, res) => {
   const postId = req.params.id;
-  const { userId } = req.body;
-
   try {
-    const exists = await db.get(
-      'SELECT * FROM votes WHERE postId = ? AND userId = ? AND voteType = "dislike"',
-      [postId, userId]
-    );
-
-    if (exists) {
-      return res.status(400).json({ error: '이미 싫어요를 누른 상태입니다.' });
-    }
-
     await db.run('UPDATE posts SET dislikes = dislikes + 1 WHERE id = ?', [postId]);
-    await db.run('INSERT INTO votes (postId, userId, voteType) VALUES (?, ?, "dislike")', [postId, userId]);
-
     res.sendStatus(200);
   } catch (err) {
     res.status(500).json({ error: '싫어요 실패' });
@@ -108,21 +69,8 @@ router.post('/:id/dislike', async (req, res) => {
 // 싫어요 취소
 router.post('/:id/undislike', async (req, res) => {
   const postId = req.params.id;
-  const { userId } = req.body;
-
   try {
-    const exists = await db.get(
-      'SELECT * FROM votes WHERE postId = ? AND userId = ? AND voteType = "dislike"',
-      [postId, userId]
-    );
-
-    if (!exists) {
-      return res.status(400).json({ error: '싫어요를 누른 기록이 없습니다.' });
-    }
-
     await db.run('UPDATE posts SET dislikes = MAX(dislikes - 1, 0) WHERE id = ?', [postId]);
-    await db.run('DELETE FROM votes WHERE postId = ? AND userId = ? AND voteType = "dislike"', [postId, userId]);
-
     res.sendStatus(200);
   } catch (err) {
     res.status(500).json({ error: '싫어요 취소 실패' });
