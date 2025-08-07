@@ -1,15 +1,16 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../db/database'); // database.js 경로에 맞게 조정
+const updateBestPosts = require('../utils/updateBestPosts');
 
-// 게시글 전체 목록 조회 (최신순)
+// 게시글 전체 목록 조회 (BEST 우선 + 최신순)
 router.get('/', async (req, res) => {
   try {
-    const posts = await db.all(
-      `SELECT id, title, author, studentId, createdAt, tag, likes, dislikes, comments
+    const posts = await db.all(`
+      SELECT id, title, author, studentId, createdAt, tag, likes, dislikes, comments, isBest
       FROM posts
-      ORDER BY createdAt DESC`
-    );
+      ORDER BY isBest DESC, datetime(createdAt) DESC
+    `);
     res.json(posts);
   } catch (err) {
     res.status(500).json({ error: '게시글 목록 불러오기 실패' });
@@ -38,6 +39,7 @@ router.post('/:id/like', async (req, res) => {
   const postId = req.params.id;
   try {
     await db.run('UPDATE posts SET likes = likes + 1 WHERE id = ?', [postId]);
+    await updateBestPosts(); // 🔥 좋아요 반영 후 BEST 업데이트
     res.sendStatus(200);
   } catch (err) {
     res.status(500).json({ error: '좋아요 실패' });
@@ -49,6 +51,7 @@ router.post('/:id/unlike', async (req, res) => {
   const postId = req.params.id;
   try {
     await db.run('UPDATE posts SET likes = MAX(likes - 1, 0) WHERE id = ?', [postId]);
+    await updateBestPosts();
     res.sendStatus(200);
   } catch (err) {
     res.status(500).json({ error: '좋아요 취소 실패' });

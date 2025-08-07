@@ -96,7 +96,7 @@ export default {
   data() {
     return {
       user: null,
-      tags: ["모집", "공지", "홍보", "질문", "기타"],
+      tags: ["전체", "모집", "공지", "홍보", "질문", "기타"],
       selectedTag: "",
       searchKeyword: "",
       posts: [],
@@ -122,7 +122,7 @@ export default {
 
       let filtered = this.posts;
 
-      if (this.selectedTag) {
+      if (this.selectedTag && this.selectedTag !== "전체") {
         filtered = filtered.filter((p) => p.tag === this.selectedTag);
       }
 

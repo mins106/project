@@ -158,7 +158,7 @@ export default {
 .hero {
   position: relative;
   height: 350px;
-  background-image: url("@/assets/sample-hero.png");
+  background-image: url("@/assets/school.png");
   background-size: cover;
   background-position: center;
   display: flex;
