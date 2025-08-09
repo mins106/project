@@ -7,7 +7,7 @@ const updateBestPosts = require('../utils/updateBestPosts');
 router.get('/', async (req, res) => {
   try {
     const posts = await db.all(`
-      SELECT id, title, author, studentId, createdAt, tag, likes, dislikes, comments, isBest
+      SELECT id, title, content, author, studentId, createdAt, tag, likes, dislikes, comments, isBest
       FROM posts
       ORDER BY isBest DESC, datetime(createdAt) DESC
     `);

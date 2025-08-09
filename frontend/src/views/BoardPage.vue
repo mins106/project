@@ -79,7 +79,9 @@
           <div class="more-menu">⋮</div>
         </div>
         <div class="post-title">{{ post.title }}</div>
-        <div class="post-content">{{ post.content }}</div>
+        <div class="post-content">
+          {{ truncate(post.content, 100) }}
+        </div>
         <div class="post-footer">
           <div class="icon">👍 {{ post.likes || 0 }}</div>
           <div class="icon">💬 {{ post.comments || 0 }}</div>
@@ -155,6 +157,10 @@ export default {
       } catch (err) {
         console.error("게시글 불러오기 실패:", err);
       }
+    },
+    truncate(text, max = 100) {
+      if (!text) return "";
+      return text.length > max ? text.slice(0, max) + "..." : text;
     },
   },
   beforeRouteEnter(to, from, next) {
@@ -367,11 +373,13 @@ export default {
   margin: 0.2rem 0;
 }
 
-.post-content {
-  color: #555;
-  font-size: 14px;
-  line-height: 1.4;
-  white-space: pre-line;
+.card-content {
+  font-size: 0.92rem;
+  color: #444;
+  line-height: 1.6;
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .icon {

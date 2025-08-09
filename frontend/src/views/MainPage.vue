@@ -54,7 +54,9 @@
           <!-- 작성자 -->
           <div class="card-author">
             {{ post.author }}
-            <span v-if="post.studentId" class="muted">({{ post.studentId }})</span>
+            <span v-if="post.studentId" class="muted"
+              >({{ post.studentId }})</span
+            >
             <span v-if="post.tag" class="tag">#{{ post.tag }}</span>
           </div>
 
@@ -114,8 +116,8 @@ export default {
     truncate(text, max = 50) {
       if (!text) return "";
       return text.length > max ? text.slice(0, max) + "..." : text;
-    }
-  }
+    },
+  },
 };
 </script>
 
