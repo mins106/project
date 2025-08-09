@@ -17,6 +17,25 @@ router.get('/', async (req, res) => {
   }
 });
 
+// 📌 BEST 3개만 가져오기
+router.get('/best', async (req, res) => {
+  try {
+    const rows = await db.all(`
+      SELECT id, title, content, author, studentId, tag, likes, dislikes, comments, createdAt
+      FROM posts
+      WHERE isBest = 1
+      ORDER BY (COALESCE(likes,0) - COALESCE(dislikes,0)) DESC,
+               COALESCE(likes,0) DESC,
+               datetime(createdAt) DESC
+      LIMIT 3
+    `);
+    res.json(rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'BEST 게시글 불러오기 실패' });
+  }
+});
+
 // 게시글 상세 조회 (댓글 포함)
 router.get('/:id', async (req, res) => {
   const postId = req.params.id;
@@ -124,6 +143,7 @@ router.post('/', async (req, res) => {
     );
 
     console.log('✅ 게시글 삽입 성공');
+    await updateBestPosts();
     res.status(201).json({ success: true });
   } catch (err) {
     console.error('❌ 게시글 작성 오류:', err.message);

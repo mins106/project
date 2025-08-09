@@ -5,8 +5,8 @@
       <div class="logo-wrap">
         <img src="@/assets/logo.png" alt="로고" />
         <div class="logo-text">
-          <div class="school-name-ko">동백중학교</div>
-          <div class="school-name-en">Dongbaek Middle School</div>
+          <div class="school-name-ko">OO중학교</div>
+          <div class="school-name-en">OOO Middle School</div>
         </div>
       </div>
       <div class="right-links">
@@ -41,22 +41,36 @@
         <h3>BEST</h3>
         <router-link to="/board" class="more-link">MORE ➜</router-link>
       </div>
-      <div class="card-list">
-        <div class="card">
-          <h4>과학 토론 동아리 모집</h4>
-          <p>지원자: 3학년 1반으로</p>
-          <p>모집 기간: 3/5 ~ 3/12</p>
-          <div class="reactions">👍 15 💬 5 👎 0</div>
-        </div>
-        <div class="card">
-          <h4>작은 음악회 공고</h4>
-          <p>일시 : 7/11<br />오디션 : 7/7<br />→ 음악실로!!</p>
-          <div class="reactions">👍 13 💬 6 👎 0</div>
-        </div>
-        <div class="card">
-          <h4>기대되는 방학</h4>
-          <p>방학식 : 7/18<br />개학 : 8/16</p>
-          <div class="reactions">👍 10 💬 2 👎 1</div>
+
+      <!-- 로딩/에러/빈/목록 -->
+      <div v-if="loadingBest" class="best-skeleton">불러오는 중…</div>
+      <div v-else-if="bestError" class="best-error">{{ bestError }}</div>
+      <div v-else-if="!bestPosts.length" class="best-empty">
+        BEST 게시글이 아직 없습니다.
+      </div>
+
+      <div v-else class="card-list">
+        <div v-for="post in bestPosts" :key="post.id" class="card">
+          <!-- 작성자 -->
+          <div class="card-author">
+            {{ post.author }}
+            <span v-if="post.studentId" class="muted">({{ post.studentId }})</span>
+            <span v-if="post.tag" class="tag">#{{ post.tag }}</span>
+          </div>
+
+          <!-- 제목 -->
+          <h4 class="card-title">{{ post.title }}</h4>
+
+          <!-- 내용 -->
+          <p class="card-content">
+            {{ truncate(post.content, 50) }}
+          </p>
+
+          <!-- 리액션 -->
+          <div class="reactions">
+            👍 {{ post.likes || 0 }} 💬 {{ post.comments || 0 }} 👎
+            {{ post.dislikes || 0 }}
+          </div>
         </div>
       </div>
     </section>
@@ -65,9 +79,9 @@
     <section class="rules">
       <h3>규칙</h3>
       <ul>
-        <li>- 비난, 욕설 금지</li>
-        <li>- 거짓 정보 공지 금지</li>
-        <li>- 안전질서 신고</li>
+        <li>비난, 욕설 금지</li>
+        <li>거짓 정보 공지 금지</li>
+        <li>안전질서 신고</li>
       </ul>
     </section>
   </div>
@@ -76,6 +90,32 @@
 <script>
 export default {
   name: "MainPage",
+  data() {
+    return { bestPosts: [], loadingBest: true, bestError: "" };
+  },
+  async mounted() {
+    try {
+      // 프록시 쓰면 '/api/posts/best', 아니면 'http://localhost:3000/api/posts/best'
+      const res = await fetch("/api/posts/best");
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+
+      // 배열이면 그대로, 객체면 data.posts 시도
+      this.bestPosts = Array.isArray(data) ? data : data.posts || [];
+      console.log("✅ BEST 응답:", data, "→ 사용:", this.bestPosts);
+    } catch (e) {
+      console.error("❌ BEST 요청 실패:", e);
+      this.bestError = "BEST 게시글을 불러오지 못했습니다.";
+    } finally {
+      this.loadingBest = false;
+    }
+  },
+  methods: {
+    truncate(text, max = 50) {
+      if (!text) return "";
+      return text.length > max ? text.slice(0, max) + "..." : text;
+    }
+  }
 };
 </script>
 
@@ -223,20 +263,49 @@ export default {
   border-radius: 12px;
   padding: 1rem;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-  min-width: 250px;
-  /* 고정 너비 */
+  min-width: 280px;
+  width: 280px;
   flex-shrink: 0;
-  /* 축소되지 않게 */
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
 }
 
-.card h4 {
-  font-size: 1rem;
-  margin-bottom: 0.5rem;
+.card-author {
+  font-size: 0.92rem;
+  font-weight: 600;
 }
 
-.card .reactions {
-  margin-top: 0.5rem;
-  font-size: 0.9rem;
+.card-author .muted {
+  color: #777;
+  font-weight: 400;
+  margin-left: 2px;
+}
+
+.card-author .tag {
+  margin-left: 6px;
+  font-size: 0.86rem;
+  color: #5a2fc9;
+}
+
+.card-title {
+  font-size: 1.05rem;
+  margin: 0.1rem 0 0.2rem;
+  line-height: 1.35;
+}
+
+.card-content {
+  font-size: 0.92rem;
+  color: #444;
+  line-height: 1.6;
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.reactions {
+  margin-top: 0.4rem;
+  font-size: 0.92rem;
   color: #555;
 }
 

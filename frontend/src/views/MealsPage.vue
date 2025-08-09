@@ -5,8 +5,8 @@
       <div class="logo-wrap">
         <img src="@/assets/logo.png" alt="로고" />
         <div class="logo-text">
-          <div class="school-name-ko">동백중학교</div>
-          <div class="school-name-en">Dongbaek Middle School</div>
+          <div class="school-name-ko">OO중학교</div>
+          <div class="school-name-en">OOO Middle School</div>
         </div>
       </div>
       <div class="right-links">
