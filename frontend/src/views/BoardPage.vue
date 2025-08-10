@@ -54,7 +54,24 @@
         <div class="post-header">
           <div class="best-badge" v-if="post.isBest">BEST</div>
           <div class="post-author">👤 {{ post.author }}</div>
-          <div class="more-menu">⋮</div>
+          <!-- ⋮ 버튼 -->
+          <button
+            v-if="canEdit(post)"
+            class="more-menu"
+            @click.stop="toggleMenu(post.id)"
+            aria-label="세부사항"
+          >
+            ⋮
+          </button>
+
+          <!-- 팝오버는 그대로(작성자일 때만 뜸) -->
+          <div
+            v-if="menuOpenId === post.id && canEdit(post)"
+            class="popover"
+            @click.stop
+          >
+            <button @click.stop="confirmDelete(post)">🗑️ 삭제</button>
+          </div>
         </div>
         <div class="post-title">{{ post.title }}</div>
         <div class="post-content">
@@ -80,48 +97,86 @@ export default {
       selectedTag: "",
       searchKeyword: "",
       posts: [],
+      menuOpenId: null, // 현재 열린 메뉴의 post.id
     };
   },
   mounted() {
     const storedUser = localStorage.getItem("user");
-    if (storedUser) {
-      this.user = JSON.parse(storedUser);
-    }
+    if (storedUser) this.user = JSON.parse(storedUser);
 
     if (sessionStorage.getItem("post_updated") === "true") {
-      this.fetchPosts(); // 또는 this.loadPosts() 등 데이터 다시 불러오기
+      this.fetchPosts();
       sessionStorage.removeItem("post_updated");
     } else {
       this.fetchPosts();
     }
+
+    // 카드 밖 클릭 시 팝오버 닫기
+    window.addEventListener("click", this.closeMenu);
+  },
+  beforeUnmount() {
+    window.removeEventListener("click", this.closeMenu);
   },
   watch: {
-    // 검색어 변경 시 서버 재요청 (디바운스)
     searchKeyword() {
       clearTimeout(this._searchTimer);
-      this._searchTimer = setTimeout(() => {
-        this.fetchPosts();
-      }, 250);
+      this._searchTimer = setTimeout(() => this.fetchPosts(), 250);
     },
-    // 태그 변경 시에도 목록을 최신으로 갱신(검색결과 집합 유지)
     selectedTag() {
       this.fetchPosts();
     },
   },
   computed: {
     filteredPosts() {
-      // 방어 코드
       if (!Array.isArray(this.posts)) return [];
-
-      // ✅ 검색은 서버에서 이미 수행됨. 여기서는 태그만 필터.
       if (this.selectedTag && this.selectedTag !== "전체") {
         return this.posts.filter((p) => p.tag === this.selectedTag);
       }
-
       return this.posts;
     },
   },
   methods: {
+    // 작성자 판정: author + studentId
+    canEdit(post) {
+      const norm = (v) => String(v ?? "").trim();
+      const uName = norm(this.user?.name),
+        uSid = norm(this.user?.studentId);
+      const pName = norm(post?.author),
+        pSid = norm(post?.studentId);
+      if (!uName || !pName) return false;
+      if (uName === pName && uSid && pSid && uSid === pSid) return true;
+      if (uName === pName && (!uSid || !pSid)) return true; // 학번 비어있는 옛글 예외
+      return false;
+    },
+    toggleMenu(id) {
+      console.log("kebab clicked for", id); // 눌림 확인
+      this.menuOpenId = this.menuOpenId === id ? null : id;
+    },
+    closeMenu() {
+      this.menuOpenId = null;
+    },
+    async confirmDelete(post) {
+      this.closeMenu();
+      if (!confirm("정말 삭제할까요?")) return;
+      try {
+        const res = await fetch(`/api/posts/${post.id}`, {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            authorName: this.user?.name || "",
+            studentId: this.user?.studentId || "",
+          }),
+        });
+        if (!res.ok) {
+          const e = await res.json().catch(() => ({}));
+          throw new Error(e.error || `HTTP ${res.status}`);
+        }
+        this.posts = this.posts.filter((p) => p.id !== post.id);
+      } catch (err) {
+        alert("삭제 실패: " + err.message);
+      }
+    },
+
     selectTag(tag) {
       this.selectedTag = tag;
     },
@@ -132,9 +187,6 @@ export default {
           `/api/posts${q ? `?q=${encodeURIComponent(q)}` : ""}`
         );
         const data = await res.json();
-
-        console.log("🔥 받아온 게시글 목록:", data);
-
         this.posts = Array.isArray(data) ? data : data.posts;
       } catch (err) {
         console.error("게시글 불러오기 실패:", err);
@@ -146,9 +198,7 @@ export default {
     },
   },
   beforeRouteEnter(to, from, next) {
-    next((vm) => {
-      vm.fetchPosts();
-    });
+    next((vm) => vm.fetchPosts());
   },
 };
 </script>
@@ -308,6 +358,45 @@ export default {
   margin-bottom: 0.5rem;
 }
 
+.more-menu {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 20;
+  background: transparent;
+  border: 0;
+  font-size: 20px;
+  cursor: pointer;
+  line-height: 1;
+  padding: 2px 6px;
+}
+
+.popover {
+  position: absolute;
+  top: 34px;
+  right: 10px;
+  background: #fff;
+  border: 1px solid #eee;
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+  display: flex;
+  flex-direction: column;
+  min-width: 120px;
+  z-index: 30;
+}
+
+.popover > button {
+  padding: 10px 14px;
+  text-align: left;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+
+.popover > button:hover {
+  background: #f6f6f7;
+}
+
 .post-title {
   font-weight: 600;
   font-size: 18px;
@@ -349,5 +438,7 @@ export default {
   border-radius: 4px;
   transform: rotate(-15deg);
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  pointer-events: none;
+  z-index: 1;
 }
 </style>

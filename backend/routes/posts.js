@@ -12,12 +12,36 @@ function getUserId(req) {
   return Number.isFinite(n) ? n : null;
 }
 
+function getAuthorMeta(req) {
+  const name = (req.header('x-author-name') || req.body?.authorName || '').trim();
+  const sid  = (req.header('x-student-id')  || req.body?.studentId  || '').trim();
+  return { name, studentId: sid };
+}
+
+async function ownerOnly(req, res, next) {
+  try {
+    const postId = Number(req.params.id);
+    const row = await db.get('SELECT author, studentId FROM posts WHERE id = ?', [postId]);
+    if (!row) return res.status(404).json({ error: '게시글이 존재하지 않습니다.' });
+
+    const { name, studentId } = getAuthorMeta(req);
+    if (!name || !studentId) return res.status(401).json({ error: '인증 정보가 없습니다.' });
+
+    if (row.author !== name || row.studentId !== studentId) {
+      return res.status(403).json({ error: '작성자만 가능합니다.' });
+    }
+    next();
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: '서버 오류' });
+  }
+}
+
 // GET /api/posts?q=키워드  (목록)
 // 로그인되어 있으면 각 게시글에 myReaction 포함
 router.get('/', async (req, res) => {
   const q = (req.query.q || '').trim().toLowerCase();
   const userId = getUserId(req);
-
   try {
     let sql = `
       SELECT 
@@ -29,12 +53,10 @@ router.get('/', async (req, res) => {
     `;
     const params = [];
     if (userId) params.push(userId);
-
     if (q) {
       sql += ` WHERE LOWER(p.title) LIKE ? OR LOWER(p.content) LIKE ? `;
       params.push(`%${q}%`, `%${q}%`);
     }
-
     sql += ` ORDER BY p.isBest DESC, datetime(p.createdAt) DESC `;
     const posts = await db.all(sql, params);
     res.json(posts);
@@ -237,6 +259,24 @@ router.post('/', async (req, res) => {
   } catch (err) {
     console.error('❌ 게시글 작성 오류:', err.message);
     res.status(500).json({ error: '게시글 작성 실패' });
+  }
+});
+
+// 삭제
+router.delete('/:id', ownerOnly, async (req, res) => {
+  const postId = Number(req.params.id);
+  try {
+    await db.exec('BEGIN');
+    await db.run('DELETE FROM comments WHERE postId = ?', [postId]);
+    await db.run('DELETE FROM post_reactions WHERE post_id = ?', [postId]);
+    await db.run('DELETE FROM posts WHERE id = ?', [postId]);
+    await db.exec('COMMIT');
+    try { await updateBestPosts(); } catch (_) {}
+    res.json({ ok: true });
+  } catch (err) {
+    try { await db.exec('ROLLBACK'); } catch (_) {}
+    console.error('삭제 실패:', err);
+    res.status(500).json({ error: '게시글 삭제 실패' });
   }
 });
 
