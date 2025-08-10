@@ -53,6 +53,18 @@ db.serialize(() => {
       FOREIGN KEY (postId) REFERENCES posts(id)
     )
   `);
+
+  // 사용자별 반응 테이블
+  db.run(`
+    CREATE TABLE IF NOT EXISTS post_reactions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      post_id INTEGER NOT NULL,
+      reaction TEXT NOT NULL CHECK (reaction IN ('like','dislike')),
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(user_id, post_id)
+    )
+  `);
 });
 
 // ✅ 비동기 함수로 사용할 수 있게 promisify 적용

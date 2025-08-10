@@ -58,115 +58,129 @@
 export default {
   name: "BoardDetailPage",
   data() {
-    let user = {};
+    // 로그인 사용자
+    let rawUser = {};
     try {
-      user = JSON.parse(localStorage.getItem("user")) || {};
-    } catch (e) {
-      user = {};
+      rawUser = JSON.parse(localStorage.getItem("user")) || {};
+    } catch (_) {
+      rawUser = {};
     }
 
+    // 서버가 x-user-id를 필요로 하므로, user.id가 없으면 임시로 studentId 사용
+    const userId = Number.isFinite(Number(rawUser.id))
+      ? Number(rawUser.id)
+      : rawUser.studentId
+      ? Number(rawUser.studentId)
+      : null;
+
     return {
-      post: {},
+      post: {
+        id: null,
+        title: "",
+        content: "",
+        likes: 0,
+        dislikes: 0,
+        comments: [],
+      },
       newComment: "",
       liked: false,
       disliked: false,
-      originalLiked: false,
-      originalDisliked: false,
-      currentUser: {
-        author: user.name || "익명",
-        studentId: user.studentId || "",
-      },
+      user: rawUser,
+      userId, // 헤더에 실을 값
+      loading: false,
+      error: "",
     };
   },
-  mounted() {
-    const postId = this.$route.params.id;
-    fetch(`http://localhost:3000/api/posts/${postId}`)
-      .then((res) => res.json())
-      .then((data) => {
+
+  async mounted() {
+    await this.fetchPost();
+  },
+
+  methods: {
+    headersWithUser() {
+      const headers = {};
+      if (this.userId != null) headers["x-user-id"] = this.userId; // 서버 미들웨어에서 req.user.id로 사용
+      return headers;
+    },
+
+    async fetchPost() {
+      try {
+        this.loading = true;
+        this.error = "";
+        const postId = this.$route.params.id;
+
+        const res = await fetch(`http://localhost:3000/api/posts/${postId}`, {
+          headers: this.headersWithUser(),
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+
         this.post = {
           likes: 0,
           dislikes: 0,
           comments: [],
           ...data,
         };
-        this.liked = localStorage.getItem(`liked_${postId}`) === "true";
-        this.disliked = localStorage.getItem(`disliked_${postId}`) === "true";
-        this.originalLiked = this.liked;
-        this.originalDisliked = this.disliked;
-      })
-      .catch((err) => {
-        console.error("게시글 불러오기 실패:", err);
-      });
-  },
-  beforeRouteLeave(to, from, next) {
-    const id = this.post.id;
-    const promises = [];
 
-    const likeChanged = this.originalLiked !== this.liked;
-    const dislikeChanged = this.originalDisliked !== this.disliked;
+        // 서버가 내려준 현재 사용자 반응 상태 반영 ('like' | 'dislike' | null)
+        this.liked = data.myReaction === "like";
+        this.disliked = data.myReaction === "dislike";
+      } catch (e) {
+        console.error("게시글 불러오기 실패:", e);
+        this.error = "게시글을 불러오지 못했습니다.";
+      } finally {
+        this.loading = false;
+      }
+    },
 
-    if (likeChanged) {
-      const endpoint = this.liked ? "like" : "unlike";
-      promises.push(
-        fetch(`http://localhost:3000/api/posts/${id}/${endpoint}`, {
-          method: "POST",
-        })
-      );
-    }
+    async setReaction(next) {
+      // next: 'like' | 'dislike' | 'none'
+      if (!this.userId) {
+        alert("⚠ 로그인 후 이용할 수 있어요.");
+        return;
+      }
+      try {
+        const res = await fetch(
+          `http://localhost:3000/api/posts/${this.post.id}/reaction`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              ...this.headersWithUser(),
+            },
+            body: JSON.stringify({ reaction: next }),
+          }
+        );
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
 
-    if (dislikeChanged) {
-      const endpoint = this.disliked ? "dislike" : "undislike";
-      promises.push(
-        fetch(`http://localhost:3000/api/posts/${id}/${endpoint}`, {
-          method: "POST",
-        })
-      );
-    }
+        // 서버 응답으로 일관 갱신
+        this.post.likes = data.likes ?? this.post.likes;
+        this.post.dislikes = data.dislikes ?? this.post.dislikes;
+        this.liked = data.myReaction === "like";
+        this.disliked = data.myReaction === "dislike";
 
-    Promise.all(promises).finally(() => {
-      if (likeChanged || dislikeChanged) {
+        // 목록 페이지 새로고침 유도 플래그
         sessionStorage.setItem("post_updated", "true");
-      }
-      next();
-    });
-  },
-  methods: {
-    toggleLike() {
-      if (this.liked) {
-        this.post.likes--;
-        this.liked = false;
-        localStorage.setItem(`liked_${this.post.id}`, "false");
-      } else {
-        this.post.likes++;
-        this.liked = true;
-        localStorage.setItem(`liked_${this.post.id}`, "true");
-        if (this.disliked) {
-          this.post.dislikes--;
-          this.disliked = false;
-          localStorage.setItem(`disliked_${this.post.id}`, "false");
-        }
+      } catch (e) {
+        console.error("반응 업데이트 실패:", e);
+        alert("처리 중 문제가 발생했습니다. 잠시 후 다시 시도해 주세요.");
       }
     },
-    toggleDislike() {
-      if (this.disliked) {
-        this.post.dislikes--;
-        this.disliked = false;
-        localStorage.setItem(`disliked_${this.post.id}`, "false");
-      } else {
-        this.post.dislikes++;
-        this.disliked = true;
-        localStorage.setItem(`disliked_${this.post.id}`, "true");
-        if (this.liked) {
-          this.post.likes--;
-          this.liked = false;
-          localStorage.setItem(`liked_${this.post.id}`, "false");
-        }
-      }
-    },
-    submitComment() {
-      // 사용자 정보 확인
-      const user = JSON.parse(localStorage.getItem("user") || "{}");
 
+    toggleLike() {
+      const next = this.liked ? "none" : "like";
+      this.setReaction(next);
+    },
+
+    toggleDislike() {
+      const next = this.disliked ? "none" : "dislike";
+      this.setReaction(next);
+    },
+
+    async submitComment() {
+      // 로그인 확인
+      const user = JSON.parse(localStorage.getItem("user") || "{}");
       if (!user.name || !user.studentId) {
         alert("⚠ 로그인 후 댓글을 작성할 수 있습니다.");
         return;
@@ -174,22 +188,42 @@ export default {
 
       if (!this.newComment.trim()) return;
 
-      fetch(`http://localhost:3000/api/posts/${this.post.id}/comments`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          text: this.newComment,
-          author: user.name,
-          studentId: user.studentId,
-        }),
-      }).then(() => {
+      try {
+        const res = await fetch(
+          `http://localhost:3000/api/posts/${this.post.id}/comments`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              text: this.newComment.trim(),
+              author: user.name,
+              studentId: user.studentId,
+            }),
+          }
+        );
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
         this.post.comments.push({
-          text: this.newComment,
+          text: this.newComment.trim(),
           author: user.name,
           studentId: user.studentId,
+          createdAt: new Date().toISOString(),
         });
         this.newComment = "";
-      });
+      } catch (e) {
+        console.error("댓글 작성 실패:", e);
+        alert("댓글 작성에 실패했어요.");
+      }
+    },
+  },
+
+  // 라우트가 같은 컴포넌트 재사용될 수 있으니 감시
+  watch: {
+    "$route.params.id": {
+      immediate: false,
+      handler() {
+        this.fetchPost();
+      },
     },
   },
 };
