@@ -34,11 +34,13 @@ const routes = [
     path: "/login",
     name: "Login",
     component: LoginPage,
+    meta: { hideTopBar: true },
   },
   {
     path: "/signup",
     name: "SignUp",
     component: SignUpPage,
+    meta: { hideTopBar: true },
   },
   {
     path: "/board",
@@ -49,11 +51,13 @@ const routes = [
     path: "/board/write",
     name: "BoardWrite",
     component: BoardWritePage,
+    meta: { hideTopBar: true },
   },
   {
     path: "/board/:id",
     name: "BoardDetail",
     component: BoardDetailPage,
+    meta: { hideTopBar: true },
   },
 ];
 
