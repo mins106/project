@@ -44,7 +44,9 @@
         v-model="searchKeyword"
         type="text"
         placeholder="검색어를 입력하세요"
+        @keyup.enter="fetchPosts"
       />
+      <button class="search-btn" @click="fetchPosts">검색</button>
     </div>
 
     <!-- 카테고리 필터 -->
@@ -117,28 +119,30 @@ export default {
       this.fetchPosts();
     }
   },
+  watch: {
+    // 검색어 변경 시 서버 재요청 (디바운스)
+    searchKeyword() {
+      clearTimeout(this._searchTimer);
+      this._searchTimer = setTimeout(() => {
+        this.fetchPosts();
+      }, 250);
+    },
+    // 태그 변경 시에도 목록을 최신으로 갱신(검색결과 집합 유지)
+    selectedTag() {
+      this.fetchPosts();
+    },
+  },
   computed: {
     filteredPosts() {
-      // 방어 코드: posts가 배열이 아닐 경우 빈 배열 반환
+      // 방어 코드
       if (!Array.isArray(this.posts)) return [];
 
-      let filtered = this.posts;
-
+      // ✅ 검색은 서버에서 이미 수행됨. 여기서는 태그만 필터.
       if (this.selectedTag && this.selectedTag !== "전체") {
-        filtered = filtered.filter((p) => p.tag === this.selectedTag);
+        return this.posts.filter((p) => p.tag === this.selectedTag);
       }
 
-      if (this.searchKeyword.trim()) {
-        const keyword = this.searchKeyword.trim().toLowerCase();
-        filtered = filtered.filter(
-          (p) =>
-            p.title.toLowerCase().includes(keyword) ||
-            p.content.toLowerCase().includes(keyword) ||
-            p.author.toLowerCase().includes(keyword)
-        );
-      }
-
-      return filtered;
+      return this.posts;
     },
   },
   methods: {
@@ -147,12 +151,14 @@ export default {
     },
     async fetchPosts() {
       try {
-        const res = await fetch("/api/posts");
+        const q = this.searchKeyword.trim();
+        const res = await fetch(
+          `/api/posts${q ? `?q=${encodeURIComponent(q)}` : ""}`
+        );
         const data = await res.json();
 
         console.log("🔥 받아온 게시글 목록:", data);
 
-        // 배열인지 확인 후 할당
         this.posts = Array.isArray(data) ? data : data.posts;
       } catch (err) {
         console.error("게시글 불러오기 실패:", err);
@@ -276,15 +282,31 @@ export default {
   margin: 0 auto 1rem;
   display: flex;
   justify-content: center;
+  gap: 0.5rem;
 }
 
 .search-box input {
-  width: 100%;
+  flex: 1;
   padding: 0.6rem 1rem;
   border-radius: 30px;
   border: 1px solid #ccc;
   font-size: 14px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.search-btn {
+  padding: 0.6rem 1.2rem;
+  background-color: #5a2fc9;
+  color: white;
+  border: none;
+  border-radius: 30px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background 0.2s ease;
+}
+
+.search-btn:hover {
+  background-color: #7c52e1;
 }
 
 /* 필터 버튼 개선 */

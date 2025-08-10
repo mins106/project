@@ -25,7 +25,7 @@
     <div class="selector-wrap">
       <div class="select-box">
         <label>학년</label>
-        <select v-model="grade" @change="fetchWeekTimetable">
+        <select v-model.number="grade" @change="fetchWeekTimetable">
           <option v-for="g in [1, 2, 3]" :key="g" :value="g">
             {{ g }}학년
           </option>
@@ -33,7 +33,7 @@
       </div>
       <div class="select-box">
         <label>반</label>
-        <select v-model="classNum" @change="fetchWeekTimetable">
+        <select v-model.number="classNum" @change="fetchWeekTimetable">
           <option v-for="n in getClassCount(grade)" :key="n" :value="n">
             {{ n }}반
           </option>

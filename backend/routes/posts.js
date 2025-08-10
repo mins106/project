@@ -3,16 +3,26 @@ const router = express.Router();
 const db = require('../db/database'); // database.js 경로에 맞게 조정
 const updateBestPosts = require('../utils/updateBestPosts');
 
-// 게시글 전체 목록 조회 (BEST 우선 + 최신순)
+// GET /api/posts?q=키워드
 router.get('/', async (req, res) => {
+  const q = (req.query.q || '').trim().toLowerCase();
   try {
-    const posts = await db.all(`
+    let sql = `
       SELECT id, title, content, author, studentId, createdAt, tag, likes, dislikes, comments, isBest
       FROM posts
-      ORDER BY isBest DESC, datetime(createdAt) DESC
-    `);
+    `;
+    const params = [];
+
+    if (q) {
+      sql += ` WHERE LOWER(title) LIKE ? OR LOWER(content) LIKE ? `;
+      params.push(`%${q}%`, `%${q}%`);
+    }
+
+    sql += ` ORDER BY isBest DESC, datetime(createdAt) DESC `;
+    const posts = await db.all(sql, params);
     res.json(posts);
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: '게시글 목록 불러오기 실패' });
   }
 });
