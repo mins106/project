@@ -31,22 +31,13 @@
       <!-- 댓글 영역 -->
       <div class="comments">
         <h2>댓글</h2>
-
-        <div v-if="post.comments && post.comments.length">
-          <div v-for="(c, i) in post.comments" :key="i" class="comment">
-            <strong>{{ c.author }} ({{ c.studentId }})</strong><br />
-            {{ c.text }}
-          </div>
-        </div>
-        <div v-else class="no-comments">아직 댓글이 없습니다.</div>
-
-        <div class="comment-form">
-          <textarea
-            v-model="newComment"
-            placeholder="댓글을 입력하세요"
-          ></textarea>
-          <button @click="submitComment">등록</button>
-        </div>
+        <!-- posts.comments(집계)가 있으면 전달해서 상단 숫자에 표시, 없으면 자동으로 rootCount를 보여줌 -->
+        <CommentList
+          v-if="post && post.id"
+          :postId="Number(post.id)"
+          :postCommentCount="post.comments"
+          @refresh="fetchPost"
+        />
       </div>
     </div>
   </div>
@@ -55,8 +46,11 @@
 </template>
 
 <script>
+import CommentList from "@/components/CommentList.vue";
+
 export default {
   name: "BoardDetailPage",
+  components: { CommentList },
   data() {
     // 로그인 사용자
     let rawUser = {};
