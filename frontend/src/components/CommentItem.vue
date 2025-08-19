@@ -165,7 +165,7 @@ export default {
     needsAtTag() {
       // 부모 댓글의 depth 기준
       const d = Number(this.comment.depth ?? 0);
-      return d >= 1;
+      return d >= 0;
     },
     guardPrefixKeydown(e) {
       if (!this.needsAtTag()) return; // 첫 번째 답글은 가드 불필요

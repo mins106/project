@@ -1,7 +1,9 @@
 <template>
   <div v-if="post.title" class="detail-page">
-    <!-- 뒤로가기 -->
-    <div class="back" @click="$router.go(-1)">←</div>
+    <!-- 상단 고정 바 -->
+    <div class="top-bar">
+      <button class="back-btn" @click="$router.go(-1)">← 뒤로가기</button>
+    </div>
 
     <div class="post-card">
       <!-- 태그 & 작성자 -->
@@ -226,16 +228,30 @@ export default {
 <style scoped>
 .detail-page {
   max-width: 750px;
-  margin: 2rem auto;
+  margin: 4rem auto 2rem; /* 상단바 공간 확보 */
   padding: 1rem;
 }
 
-.back {
+.top-bar {
   position: fixed;
-  top: 24px;
-  left: 20px;
-  font-size: 24px;
+  top: 0;
+  left: 0;
+  width: 100%;
+  background: #fff;
+  border-bottom: 1px solid #ddd;
+  padding: 20px 20px;
+  display: flex;
+  align-items: center;
+  z-index: 1000;
+}
+
+.back-btn {
+  background: none;
+  border: none;
+  font-size: 16px;
   cursor: pointer;
+  color: #333;
+  font-weight: bold;
 }
 
 .post-card {
