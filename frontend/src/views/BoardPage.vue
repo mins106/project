@@ -26,7 +26,7 @@
     </div>
 
     <!-- 카테고리 필터 -->
-    <div class="category-filter">
+    <div class="category-filter tag-scroll">
       <button
         v-for="tag in tags"
         :key="tag"
@@ -208,30 +208,31 @@ export default {
   font-family: "Noto Sans KR", sans-serif;
   background: #f8f9fc;
   min-height: 100vh;
-  padding-bottom: 3rem;
+  padding: 0 12px 3.5rem;
 }
 
 /* 사용자 정보 */
 .user-info {
   background: #eaf0ff;
   border-radius: 16px;
-  padding: 1.2rem 1rem;
-  margin: 1rem auto;
-  max-width: 700px;
+  padding: 1.1rem 1rem;
+  margin: 12px auto;
+  max-width: 820px;
   display: flex;
   align-items: center;
+  gap: 12px;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
 }
 
 .profile-placeholder {
-  width: 60px;
-  height: 60px;
+  width: 56px;
+  height: 56px;
   background: #cbd5e1;
   border-radius: 50%;
   display: flex;
   justify-content: center;
   align-items: center;
-  font-size: 28px;
+  font-size: 26px;
   margin-right: 1rem;
 }
 
@@ -247,16 +248,19 @@ export default {
 
 /* 검색창 */
 .search-box {
-  max-width: 700px;
-  margin: 0 auto 1rem;
+  max-width: 820px;
+  margin: 0 auto 12px;
   display: flex;
-  justify-content: center;
-  gap: 0.5rem;
+  gap: 8px;
+  flex-wrap: nowrap; /* ✅ 한 줄 강제 */
+  align-items: center; /* 수직 가운데 정렬 */
 }
 
 .search-box input {
-  flex: 1;
-  padding: 0.6rem 1rem;
+  flex: 1; /* ✅ 남은 공간을 모두 차지 */
+  min-width: 0; /* ✅ 너무 작아질 때 깨짐 방지 */
+  height: 42px;
+  padding: 0 14px;
   border-radius: 30px;
   border: 1px solid #ccc;
   font-size: 14px;
@@ -264,14 +268,15 @@ export default {
 }
 
 .search-btn {
-  padding: 0.6rem 1.2rem;
-  background-color: #5a2fc9;
-  color: white;
-  border: none;
+  flex-shrink: 0; /* ✅ 버튼은 줄어들지 않음 */
+  height: 42px;
+  padding: 0 16px;
   border-radius: 30px;
+  border: 0;
+  background: #5a2fc9;
+  color: #fff;
+  font-weight: 600;
   cursor: pointer;
-  font-size: 14px;
-  transition: background 0.2s ease;
 }
 
 .search-btn:hover {
@@ -280,22 +285,30 @@ export default {
 
 /* 필터 버튼 개선 */
 .category-filter {
+  justify-content: flex-start;
+  gap: 8px;
+  margin: 8px auto 18px;
+  max-width: 820px;
+}
+
+.tag-scroll {
   display: flex;
-  justify-content: center;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-bottom: 2rem;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 6px 2px 10px;
 }
 
 .category-filter button {
-  padding: 0.45rem 1.1rem;
+  flex: 0 0 auto;
+  padding: 9px 14px;
   background: #e4e4f7;
-  border: none;
-  border-radius: 20px;
+  border: 0;
+  border-radius: 999px;
   color: #333;
   font-size: 14px;
   cursor: pointer;
-  transition: 0.2s ease;
+  transition: 0.2s;
+  white-space: nowrap;
 }
 
 .category-filter button.active {
@@ -310,16 +323,18 @@ export default {
 /* 글쓰기 버튼 (오른쪽 하단 고정) */
 .write-button {
   position: fixed;
-  bottom: 30px;
-  right: 30px;
+  bottom: max(16px, env(safe-area-inset-bottom) + 12px);
+  right: 18px;
+  width: 52px;
+  height: 52px;
+  display: grid;
+  place-items: center;
   background: #5a2fc9;
-  color: white;
-  font-size: 24px;
-  padding: 12px 18px;
-  border-radius: 50px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  color: #fff;
+  font-size: 22px;
+  border-radius: 50%;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18);
   text-decoration: none;
-  transition: background 0.3s ease;
   z-index: 1001;
 }
 
@@ -334,6 +349,14 @@ export default {
   gap: 1rem;
   max-width: 700px;
   margin: 0 auto;
+}
+
+@media (min-width: 720px) {
+  .post-list {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  /* 태블릿 2열 */
 }
 
 /* 카드 디자인 개선 */
@@ -403,11 +426,19 @@ export default {
   margin: 0.2rem 0;
 }
 
-.card-content {
-  font-size: 0.92rem;
+.post-content {
+  /* 표준 + 웹킷 line-clamp */
+  display: -webkit-box;
+  overflow: hidden;
+  line-height: 1.5;
+  line-clamp: 3;
+  /* Lint 만족용 표준 */
+  -webkit-line-clamp: 3;
+  /* 실제 동작 */
+  -webkit-box-orient: vertical;
+
+  font-size: clamp(13px, 3.6vw, 15px);
   color: #444;
-  line-height: 1.6;
-  white-space: normal;
   word-break: break-word;
   overflow-wrap: anywhere;
 }
@@ -421,24 +452,47 @@ export default {
 }
 
 .post-footer {
-  margin-top: 0.8rem;
+  margin-top: 10px;
   display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
 }
 
 /* BEST 배지 */
 .best-badge {
   position: absolute;
-  top: -8px;
-  left: -8px;
-  background: #ff3b3b;
-  color: white;
+  top: -12px;
+  left: -6px;
+  background: #ff4d6d;
+  color: #fff;
   font-size: 11px;
-  font-weight: bold;
-  padding: 3px 8px;
-  border-radius: 4px;
-  transform: rotate(-15deg);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  font-weight: 800;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transform: rotate(-12deg);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.12);
   pointer-events: none;
-  z-index: 1;
+}
+
+@media (max-width: 420px) {
+  .board-page {
+    padding: 0 10px 80px;
+  }
+
+  .user-info {
+    border-radius: 14px;
+  }
+
+  .post-card {
+    border-radius: 14px;
+    padding: 12px;
+  }
+
+  .write-button {
+    right: 14px;
+    width: 48px;
+    height: 48px;
+    font-size: 20px;
+  }
 }
 </style>

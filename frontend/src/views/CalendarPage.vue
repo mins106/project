@@ -23,39 +23,41 @@
     </div>
 
     <!-- 달력 -->
-    <table class="calendar-table">
-      <thead>
-        <tr>
-          <th
-            v-for="(day, idx) in days"
-            :key="day"
-            :class="{ sun: idx === 6, sat: idx === 5 }"
-          >
-            {{ day }}
-          </th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr v-for="(week, i) in calendar" :key="i">
-          <td
-            v-for="(cell, j) in week"
-            :key="j"
-            :class="{ sun: j === 6, sat: j === 5, today: isToday(cell) }"
-          >
-            <div v-if="cell !== null" class="day-card">
-              <div class="day-number">{{ cell }}</div>
-              <div
-                v-for="event in getEvents(cell)"
-                :key="event"
-                class="event-text"
-              >
-                {{ event }}
+    <div class="cal-scroll">
+      <table class="calendar-table">
+        <thead>
+          <tr>
+            <th
+              v-for="(day, idx) in days"
+              :key="day"
+              :class="{ sun: idx === 6, sat: idx === 5 }"
+            >
+              {{ day }}
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="(week, i) in calendar" :key="i">
+            <td
+              v-for="(cell, j) in week"
+              :key="j"
+              :class="{ sun: j === 6, sat: j === 5, today: isToday(cell) }"
+            >
+              <div v-if="cell !== null" class="day-card">
+                <div class="day-number">{{ cell }}</div>
+                <div
+                  v-for="event in getEvents(cell)"
+                  :key="event"
+                  class="event-text"
+                >
+                  {{ event }}
+                </div>
               </div>
-            </div>
-          </td>
-        </tr>
-      </tbody>
-    </table>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
   </div>
 </template>
 
@@ -171,6 +173,13 @@ export default {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.cal-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 0 12px; /* 가장자리 여백 */
 }
 
 .select-group select {
@@ -199,16 +208,18 @@ export default {
 
 /* 달력 테이블 */
 .calendar-table {
-  width: 90%;
-  margin: auto;
+  width: 100%;
+  margin: 0 auto;
   border-collapse: collapse;
   table-layout: fixed;
+  min-width: 560px;
 }
 
 .calendar-table th {
   background: #eef;
   font-weight: 600;
   padding: 0.5rem;
+  font-size: clamp(12px, 2.8vw, 14px);
 }
 
 .calendar-table td {
@@ -234,7 +245,7 @@ export default {
 
 /* 날짜 카드 */
 .day-card {
-  background: white;
+  background: #fff;
   box-shadow: 0 0 5px rgba(0, 0, 0, 0.05);
   border-radius: 8px;
   padding: 0.4rem;
@@ -251,12 +262,33 @@ export default {
 }
 
 .event-text {
-  font-size: 0.7rem;
-  background: #e0e7ff;
-  color: #333;
+  margin-top: 4px;
   padding: 2px 6px;
   border-radius: 6px;
-  margin-top: 4px;
-  display: inline-block;
+  background: #e0e7ff;
+  color: #333;
+  font-size: clamp(10px, 2.8vw, 12px);
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2; /* 최대 2줄 표시 */
+  -webkit-box-orient: vertical;
+  line-clamp: 2;
+  overflow: hidden;
+  word-break: keep-all;
+}
+
+@media (max-width: 420px) {
+  .calendar-page {
+    padding-bottom: 2rem;
+  }
+  .calendar-table {
+    min-width: 520px;
+  } /* 스크롤 길이 조금 더 줄임 */
+  .calendar-table td {
+    height: 100px;
+  } /* 셀 높이 살짝 축소 */
+  .day-card {
+    border-radius: 10px;
+  }
 }
 </style>
