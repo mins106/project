@@ -1,6 +1,3 @@
-import express from "express";
-import cors from "cors";
-
 const express = require('express');
 const app = express();
 const cors = require('cors');
@@ -30,13 +27,3 @@ const PORT = 3000;
 app.listen(PORT, () => {
   console.log(`서버 실행 중: http://localhost:${PORT}`);
 });
-
-app.use(cors({
-  origin: ["https://<프론트-도메인>", "http://localhost:8080"],
-  credentials: true
-}));
-
-// 예시 라우트
-app.get("/api/health", (req, res) => res.json({ ok: true }));
-
-app.listen(process.env.PORT || 3000, () => console.log("server on"));
