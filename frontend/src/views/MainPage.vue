@@ -26,7 +26,13 @@
       </div>
 
       <div v-else class="card-list">
-        <div v-for="post in bestPosts" :key="post.id" class="card">
+        <router-link
+          v-for="post in bestPosts"
+          :key="post.id"
+          class="card"
+          :to="{ name: 'BoardDetail', params: { id: post.id } }"
+          :aria-label="`게시글 '${post.title}' 상세보기`"
+        >
           <!-- 작성자 -->
           <div class="card-author">
             {{ post.author }}
@@ -49,7 +55,7 @@
             👍 {{ post.likes || 0 }} 💬 {{ post.comments || 0 }} 👎
             {{ post.dislikes || 0 }}
           </div>
-        </div>
+        </router-link>
       </div>
     </section>
 
@@ -179,11 +185,18 @@ export default {
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
+  text-decoration: none;
+  color: inherit;
 }
 
 .card-author {
   font-size: 0.92rem;
   font-weight: 600;
+}
+
+.card:hover {
+  transform: translateY(-2px);
+  transition: 120ms;
 }
 
 .card-author .muted {
