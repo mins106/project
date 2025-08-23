@@ -16,7 +16,7 @@
         <div v-for="meal in filteredMeals" :key="meal.date" class="meal-card">
           <div class="meal-date">{{ formatDateForDisplay(meal.date) }}</div>
           <div class="meal-content" v-if="meal.menu && meal.menu.trim() !== ''">
-            <p class="kcal">{{ meal.cal }} Kcal</p>
+            <p class="kcal">{{ meal.cal }}</p>
             <p v-for="line in meal.menu.split('\n')" :key="line">{{ line }}</p>
           </div>
           <div class="no-meal" v-else>이 날은 급식이 없어요^^</div>
