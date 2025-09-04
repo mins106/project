@@ -8,6 +8,7 @@ import SignUpPage from "@/views/SignUpPage.vue";
 import BoardPage from "@/views/BoardPage.vue";
 import BoardWritePage from "@/views/BoardWritePage.vue";
 import BoardDetailPage from "@/views/BoardDetailPage.vue";
+import MealDetailPage from "@/views/MealDetailPage.vue";
 
 const routes = [
   {
@@ -19,6 +20,19 @@ const routes = [
     path: "/meals",
     name: "Meals",
     component: MealsPage,
+  },
+  {
+    path: "/meals/:date",
+    name: "MealDetail",
+    component: MealDetailPage,
+    props: true,
+    meta: { hideTopBar: true },
+  },
+  {
+    path: "/meals/:date?",
+    name: "Meals",
+    component: MealsPage,
+    props: (route) => ({ initialDate: route.params.date ?? null }),
   },
   {
     path: "/timetable",

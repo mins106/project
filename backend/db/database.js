@@ -112,7 +112,7 @@ async function ensureSchema() {
     await db.run(`ALTER TABLE comments ADD COLUMN updatedAt TEXT`);
   }
 
-  // 3) 인덱스
+  // 3) 인덱스 (댓글)
   if (!(await hasIndex('idx_comments_post'))) {
     await db.run(`CREATE INDEX idx_comments_post ON comments(postId)`);
   }
@@ -133,6 +133,62 @@ async function ensureSchema() {
         DELETE FROM comments WHERE postId = OLD.id;
       END;
     `);
+  }
+
+  // ──────────────────────────────────────────────────────────────
+  // 5) 급식 메뉴별 리뷰 스키마 (하이브리드: 방법1+방법2)
+  //    - dishes: 메뉴 사전
+  //    - meal_dishes: 날짜별 제공 메뉴
+  //    - dish_feedback: 사용자별 메뉴 피드백(좋/보/별 + 짠맛/온도/양/식감 + Keep/Improve)
+  // ──────────────────────────────────────────────────────────────
+
+  await db.run(`
+    CREATE TABLE IF NOT EXISTS dishes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL UNIQUE
+    )
+  `);
+
+  await db.run(`
+    CREATE TABLE IF NOT EXISTS meal_dishes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      meal_date TEXT NOT NULL,          -- 'YYYY-MM-DD'
+      dish_id INTEGER NOT NULL,
+      FOREIGN KEY(dish_id) REFERENCES dishes(id) ON DELETE CASCADE,
+      UNIQUE(meal_date, dish_id)        -- 같은 날 같은 메뉴 중복 방지
+    )
+  `);
+
+  await db.run(`
+    CREATE TABLE IF NOT EXISTS dish_feedback (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      meal_dish_id INTEGER NOT NULL,
+      like_flag INTEGER,                -- -1(별로) 0(보통) +1(좋아요)
+      salt_level INTEGER,               -- -1(싱거움) 0(적당) +1(조금 짬) +2(많이 짬)
+      temp_level INTEGER,               -- -1(차가움) 0(적당) +1(뜨거움)
+      portion_level INTEGER,            -- -1(부족) 0(적당) +1(많음)
+      texture_level INTEGER,            -- -1(질김) 0(적당) +1(부드러움)
+      keep_text TEXT,                   -- 좋았던 점
+      improve_text TEXT,                -- 개선 제안
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY(meal_dish_id) REFERENCES meal_dishes(id) ON DELETE CASCADE,
+      UNIQUE(user_id, meal_dish_id)     -- 1인 1메뉴 1회(업서트로 수정 허용)
+    )
+  `);
+
+  // 인덱스 (급식/리뷰)
+  if (!(await hasIndex('idx_meal_dishes_date'))) {
+    await db.run(`CREATE INDEX idx_meal_dishes_date ON meal_dishes(meal_date)`);
+  }
+  if (!(await hasIndex('idx_meal_dishes_dish'))) {
+    await db.run(`CREATE INDEX idx_meal_dishes_dish ON meal_dishes(dish_id)`);
+  }
+  if (!(await hasIndex('idx_feedback_meal'))) {
+    await db.run(`CREATE INDEX idx_feedback_meal ON dish_feedback(meal_dish_id)`);
+  }
+  if (!(await hasIndex('idx_feedback_user'))) {
+    await db.run(`CREATE INDEX idx_feedback_user ON dish_feedback(user_id)`);
   }
 
   console.log('✅ 스키마/마이그레이션 완료');

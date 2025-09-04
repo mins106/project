@@ -45,11 +45,23 @@ exports.login = async (req, res) => {
       return res.status(401).json({ message: '비밀번호가 일치하지 않습니다.' });
     }
 
+    // ✅ 여기서 세션에 로그인 사용자 저장 (중요!)
+    //    이후 라우트에서 req.session.user.id 로 식별
+    req.session.user = {
+      id: user.id,
+      user_id: user.user_id,
+      name: user.name,
+      student_id: user.student_id,
+    };
+
+    // 응답 형식은 기존과 최대한 유사하게 유지
     res.json({
       user: {
         name: user.name,
-        userId: user.student_id,
+        userId: user.student_id, // (기존 코드 호환: 그대로 둠)
       },
+      ok: true,
+      session: req.session.user, // 프론트 디버깅용(원하면 사용)
     });
   } catch (err) {
     console.error('❌ 로그인 오류:', err.message);

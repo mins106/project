@@ -1,25 +1,34 @@
 <template>
   <div class="meals-page">
-    <!-- 주차 이동 버튼 -->
+    <!-- 주차 이동 -->
     <div class="week-nav">
       <button @click="changeWeek(-1)">← 저번주</button>
       <span>{{ formatWeekRange(startDate) }}</span>
       <button @click="changeWeek(1)">다음주 →</button>
     </div>
 
-    <!-- 급식 카드 리스트 -->
     <main class="meal-list">
       <div v-if="filteredMeals.length === 0">
         이번 주에는 급식 데이터가 없습니다.
       </div>
+
       <div v-else>
         <div v-for="meal in filteredMeals" :key="meal.date" class="meal-card">
           <div class="meal-date">{{ formatDateForDisplay(meal.date) }}</div>
+
           <div class="meal-content" v-if="meal.menu && meal.menu.trim() !== ''">
             <p class="kcal">{{ meal.cal }}</p>
             <p v-for="line in meal.menu.split('\n')" :key="line">{{ line }}</p>
           </div>
           <div class="no-meal" v-else>이 날은 급식이 없어요^^</div>
+
+          <!-- 상세 페이지로 이동 -->
+          <router-link
+            class="detail-btn"
+            :to="{ name: 'MealDetail', params: { date: meal.date } }"
+          >
+            메뉴 상세 보기 →
+          </router-link>
         </div>
       </div>
     </main>
@@ -29,40 +38,51 @@
 <script>
 export default {
   name: "MealsPage",
-  data() {
-    const today = new Date();
-    const dayOfWeek = today.getDay(); // 0(일) ~ 6(토)
-    const monday = new Date(today);
-    monday.setDate(today.getDate() - ((dayOfWeek + 6) % 7)); // 가장 가까운 월요일
+  props: { initialDate: { type: String, default: null } },
 
-    return {
-      meals: [],
-      startDate: monday, // 월요일로 고정
-    };
+  data() {
+    // 기본: 이번 주 월요일
+    const today = new Date();
+    const dayOfWeek = today.getDay();
+    const monday = new Date(today);
+    monday.setDate(today.getDate() - ((dayOfWeek + 6) % 7));
+    return { meals: [], startDate: monday };
   },
+
   created() {
+    // URL로 날짜가 들어오면 그 주 월요일로 보정
+    if (this.initialDate) {
+      const d = this.initialDate.replace(/-/g, "");
+      const date = new Date(
+        `${d.slice(0, 4)}-${d.slice(4, 6)}-${d.slice(6, 8)}`
+      );
+      const dow = date.getDay();
+      const monday = new Date(date);
+      monday.setDate(date.getDate() - ((dow + 6) % 7));
+      this.startDate = monday;
+    }
     this.fetchMeals();
   },
+
   computed: {
     filteredMeals() {
-      return this.meals.filter(
-        (meal) => meal?.date && !this.isWeekend(meal.date)
-      );
+      return this.meals.filter((m) => m?.date && !this.isWeekend(m.date));
     },
   },
+
   methods: {
     async fetchMeals() {
       const from = this.formatDateForAPI(this.startDate);
       const to = this.formatDateForAPI(
         new Date(this.startDate.getTime() + 6 * 86400000)
       );
-      const res = await fetch(`/api/meals/week?from=${from}&to=${to}`);
-      const data = await res.json();
-
-      if (Array.isArray(data)) {
-        this.meals = data;
-      } else {
-        console.error("급식 데이터 형식 오류:", data);
+      try {
+        const res = await fetch(`/api/meals/week?from=${from}&to=${to}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        this.meals = Array.isArray(data) ? data : [];
+      } catch (e) {
+        console.error("급식 요청 실패:", e);
         this.meals = [];
       }
     },
@@ -70,37 +90,32 @@ export default {
       return date.toISOString().split("T")[0].replace(/-/g, "");
     },
     formatDateForDisplay(dateStr) {
-      const m = dateStr.slice(4, 6);
-      const d = dateStr.slice(6, 8);
+      const m = dateStr.slice(4, 6),
+        d = dateStr.slice(6, 8);
       return `${Number(m)}월 ${Number(d)}일`;
     },
     formatWeekRange(startDate) {
       const dayOfWeek = startDate.getDay();
       const monday = new Date(startDate);
       monday.setDate(monday.getDate() - ((dayOfWeek + 6) % 7));
-
       const friday = new Date(monday);
       friday.setDate(monday.getDate() + 4);
-
       return `${monday.getMonth() + 1}월 ${monday.getDate()}일 ~ ${
         friday.getMonth() + 1
       }월 ${friday.getDate()}일`;
     },
     changeWeek(offset) {
-      // 현재 startDate 기준으로 월요일을 먼저 계산
-      const dayOfWeek = this.startDate.getDay(); // 0: 일 ~ 6: 토
+      const dayOfWeek = this.startDate.getDay();
       const monday = new Date(this.startDate);
-      monday.setDate(monday.getDate() - ((dayOfWeek + 6) % 7)); // 월요일로 보정
-
-      // offset 주 이동 후 새로운 월요일 계산
+      monday.setDate(monday.getDate() - ((dayOfWeek + 6) % 7));
       this.startDate = new Date(monday.getTime() + offset * 7 * 86400000);
       this.fetchMeals();
     },
     isWeekend(dateStr) {
-      const date = new Date(
+      const d = new Date(
         `${dateStr.slice(0, 4)}-${dateStr.slice(4, 6)}-${dateStr.slice(6, 8)}`
       );
-      const day = date.getDay();
+      const day = d.getDay();
       return day === 0 || day === 6;
     },
   },
@@ -123,8 +138,8 @@ export default {
 }
 
 .week-nav button {
-  background-color: #4b2aad;
-  color: white;
+  background: #4b2aad;
+  color: #fff;
   border: none;
   padding: 6px 12px;
   border-radius: 8px;
@@ -137,12 +152,12 @@ export default {
 
 .meal-list {
   padding: 20px;
-  max-width: 600px;
+  max-width: 720px;
   margin: auto;
 }
 
 .meal-card {
-  background-color: #e6f0ff;
+  background: #e6f0ff;
   border-radius: 12px;
   margin-bottom: 20px;
   overflow: hidden;
@@ -150,8 +165,8 @@ export default {
 }
 
 .meal-date {
-  background-color: #4b2aad;
-  color: white;
+  background: #4b2aad;
+  color: #fff;
   padding: 10px;
   font-weight: bold;
   text-align: center;
@@ -172,5 +187,22 @@ export default {
   text-align: center;
   font-size: 14px;
   color: #555;
+}
+
+.detail-btn {
+  display: block;
+  width: fit-content;
+  margin: 10px auto 14px;
+  background: #4b2aad;
+  color: #fff;
+  text-decoration: none;
+  padding: 8px 14px;
+  border-radius: 10px;
+  font-weight: 700;
+  box-shadow: 0 4px 10px rgba(75, 42, 173, 0.2);
+}
+
+.detail-btn:hover {
+  filter: brightness(1.05);
 }
 </style>
