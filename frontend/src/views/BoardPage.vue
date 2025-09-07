@@ -56,22 +56,27 @@
             <div class="best-badge" v-if="post.isBest">BEST</div>
             <div class="post-author">👤 {{ post.author }}</div>
             <button
-              v-if="canEdit(post)"
               class="more-menu"
               @click.stop="toggleMenu(post.id)"
               aria-label="세부사항"
             >
               ⋮
             </button>
-            <div
-              v-if="menuOpenId === post.id && canEdit(post)"
-              class="popover"
-              @click.stop
-            >
-              <button @click.stop="confirmDelete(post)">🗑️ 삭제</button>
+            <div v-if="menuOpenId === post.id" class="popover" @click.stop>
+              <!-- 즐겨찾기 토글 -->
+              <button @click.stop="onToggleFavorite(post)">
+                <span>{{ post.isFavorited ? "★" : "☆" }}</span>
+                {{ post.isFavorited ? "즐겨찾기 해제" : "즐겨찾기 추가" }}
+              </button>
+              <!-- 삭제는 작성자만 -->
+              <button v-if="canEdit(post)" @click.stop="confirmDelete(post)">
+                🗑️ 삭제
+              </button>
             </div>
           </div>
-          <div class="post-title">{{ post.title }}</div>
+          <div class="post-title">
+            {{ post.title }}
+          </div>
           <div class="post-content">{{ truncate(post.content, 100) }}</div>
           <div class="post-footer">
             <div class="icon">👍 {{ post.likes || 0 }}</div>
@@ -98,7 +103,7 @@ export default {
   data() {
     return {
       user: null,
-      tags: ["전체", "모집", "공지", "홍보", "질문", "기타"],
+      tags: ["전체", "모집", "공지", "홍보", "질문", "기타", "즐겨찾기"],
       selectedTag: "",
       searchKeyword: "",
       posts: [],
@@ -132,6 +137,9 @@ export default {
   computed: {
     filteredPosts() {
       if (!Array.isArray(this.posts)) return [];
+      if (this.selectedTag === "즐겨찾기") {
+        return this.posts; // 서버에서 즐겨찾기만 내려옴
+      }
       if (this.selectedTag && this.selectedTag !== "전체") {
         return this.posts.filter((p) => p.tag === this.selectedTag);
       }
@@ -139,6 +147,33 @@ export default {
     },
   },
   methods: {
+    getStudentId() {
+      return this.user?.studentId ? String(this.user.studentId) : "";
+    },
+    async onToggleFavorite(post) {
+      const sid = this.getStudentId();
+      if (!sid) {
+        alert("로그인이 필요합니다.");
+        return;
+      }
+      try {
+        const res = await fetch(`/api/posts/${post.id}/favorite`, {
+          method: "POST",
+          headers: { "x-student-id": sid },
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        post.isFavorited = !!data.favorited;
+        // 즐겨찾기 탭에서는 해제 시 즉시 제거
+        if (this.selectedTag === "즐겨찾기" && post.isFavorited === false) {
+          this.posts = this.posts.filter((p) => p.id !== post.id);
+        }
+        this.closeMenu();
+      } catch (e) {
+        console.error(e);
+        alert("즐겨찾기 처리 실패");
+      }
+    },
     imgUrl(path) {
       if (!path) return "";
       if (/^https?:\/\//i.test(path)) return path;
@@ -196,12 +231,23 @@ export default {
     async fetchPosts() {
       try {
         const q = this.searchKeyword.trim();
+        const sid = this.getStudentId();
+        const params = new URLSearchParams();
+        if (q) params.set("q", q);
+        if (this.selectedTag === "즐겨찾기") params.set("favorite", "1");
+
         const res = await fetch(
-          `/api/posts${q ? `?q=${encodeURIComponent(q)}` : ""}`
+          `/api/posts${params.toString() ? `?${params}` : ""}`,
+          {
+            headers: sid ? { "x-student-id": sid } : {},
+          }
         );
         const data = await res.json();
-        // 서버가 thumbnail 필드를 추가로 줌
-        this.posts = Array.isArray(data) ? data : data.posts;
+        const rows = Array.isArray(data) ? data : data.posts;
+        this.posts = (rows || []).map((p) => ({
+          ...p,
+          isFavorited: !!p.isFavorited,
+        }));
       } catch (err) {
         console.error("게시글 불러오기 실패:", err);
       }
@@ -391,6 +437,8 @@ export default {
 .thumb-col {
   display: flex;
   justify-content: flex-end;
+  align-items: flex-end;
+  padding-top: 24px; /* 버튼과 겹치지 않게 위에 여백 */
 }
 
 .thumb-small {
@@ -459,6 +507,8 @@ export default {
   font-size: 18px;
   margin: 0.2rem 0;
 }
+
+/* 검은 별 */
 
 .post-content {
   display: -webkit-box;

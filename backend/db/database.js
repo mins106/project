@@ -42,6 +42,13 @@ async function hasTrigger(name) {
   );
   return !!row;
 }
+async function hasTable(name) {
+  const row = await db.get(
+    `SELECT name FROM sqlite_master WHERE type='table' AND name=?;`,
+    [name]
+  );
+  return !!row;
+}
 
 // 스키마 생성 + 마이그레이션
 async function ensureSchema() {
@@ -137,9 +144,6 @@ async function ensureSchema() {
 
   // ──────────────────────────────────────────────────────────────
   // 5) 급식 메뉴별 리뷰 스키마 (하이브리드: 방법1+방법2)
-  //    - dishes: 메뉴 사전
-  //    - meal_dishes: 날짜별 제공 메뉴
-  //    - dish_feedback: 사용자별 메뉴 피드백(좋/보/별 + 짠맛/온도/양/식감 + Keep/Improve)
   // ──────────────────────────────────────────────────────────────
 
   await db.run(`
@@ -177,7 +181,6 @@ async function ensureSchema() {
     )
   `);
 
-  // 인덱스 (급식/리뷰)
   if (!(await hasIndex('idx_meal_dishes_date'))) {
     await db.run(`CREATE INDEX idx_meal_dishes_date ON meal_dishes(meal_date)`);
   }
@@ -209,6 +212,38 @@ async function ensureSchema() {
 
   await db.run(`CREATE INDEX IF NOT EXISTS idx_post_images_post_id ON post_images(post_id)`);
   await db.run(`CREATE INDEX IF NOT EXISTS idx_post_images_post_id_order ON post_images(post_id, sort_order)`);
+
+  // ──────────────────────────────────────────────────────────────
+  // 6) 즐겨찾기(favorites) 스키마 추가
+  //    - UNIQUE(user_id, post_id)로 중복 방지
+  //    - FK(ON DELETE CASCADE)로 사용자/게시글 삭제 시 자동 정리
+  // ──────────────────────────────────────────────────────────────
+  await db.run(`
+    CREATE TABLE IF NOT EXISTS favorites (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      post_id INTEGER NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+      UNIQUE(user_id, post_id),
+      FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY(post_id) REFERENCES posts(id) ON DELETE CASCADE
+    )
+  `);
+
+  if (!(await hasIndex('idx_favorites_user'))) {
+    await db.run(`CREATE INDEX idx_favorites_user ON favorites(user_id)`);
+  }
+  if (!(await hasIndex('idx_favorites_post'))) {
+    await db.run(`CREATE INDEX idx_favorites_post ON favorites(post_id)`);
+  }
+
+  // 성능 보완: post_reactions도 자주 조회되므로 인덱스 추가(없으면)
+  if (!(await hasIndex('idx_post_reactions_user'))) {
+    await db.run(`CREATE INDEX idx_post_reactions_user ON post_reactions(user_id)`);
+  }
+  if (!(await hasIndex('idx_post_reactions_post'))) {
+    await db.run(`CREATE INDEX idx_post_reactions_post ON post_reactions(post_id)`);
+  }
 
   console.log('✅ 스키마/마이그레이션 완료');
 }

@@ -35,12 +35,28 @@ const upload = multer({
   limits: { fileSize: 8 * 1024 * 1024, files: 10 }
 });
 
-// --- 유틸: 로그인 사용자 식별 (데모용: x-user-id 헤더 사용) ---
-function getUserId(req) {
-  const uid = req.header('x-user-id');
-  if (!uid) return null;
-  const n = Number(uid);
-  return Number.isFinite(n) ? n : null;
+// --- 로그인 사용자 식별 (세션/헤더 모두 지원) ---
+async function resolveUserId(req) {
+  // 1) 세션 우선 (auth.js에서 로그인 시 req.session.user 심음)
+  if (req.session?.user?.id) return req.session.user.id;
+
+  // 2) 예전 호환: x-user-id (숫자)도 허용
+  const raw = req.header('x-user-id');
+  const n = Number(raw);
+  if (Number.isFinite(n) && n > 0) return n;
+
+  // 3) 우리가 원하는 방식: x-student-id 로 users.id 조회
+  const sid =
+    (req.header('x-student-id') || req.body?.studentId || '').trim();
+  if (sid) {
+    const row = await db.get(
+      'SELECT id FROM users WHERE student_id = ?',
+      [sid]
+    );
+    if (row?.id) return row.id;
+  }
+
+  return null;
 }
 
 function getAuthorMeta(req) {
@@ -68,24 +84,100 @@ async function ownerOnly(req, res, next) {
   }
 }
 
-// GET /api/posts?q=키워드  (목록)
-// 로그인되어 있으면 각 게시글에 myReaction 포함
-router.get('/', async (req, res) => {
-  const q = (req.query.q || '').trim().toLowerCase();
-  const userId = getUserId(req);
+router.post('/:id/favorite', async (req, res) => {
+  const postId = Number(req.params.id);
+  const userId = await resolveUserId(req);
+  if (!userId) return res.status(401).json({ error: '로그인이 필요합니다.' });
 
   try {
-    // 1) 기본 목록 + (선택) 내 반응 조인
+    const exist = await db.get(
+      'SELECT id FROM favorites WHERE user_id = ? AND post_id = ?',
+      [userId, postId]
+    );
+
+    if (exist) {
+      await db.run('DELETE FROM favorites WHERE user_id = ? AND post_id = ?', [userId, postId]);
+      return res.json({ favorited: false });
+    } else {
+      await db.run('INSERT INTO favorites (user_id, post_id) VALUES (?, ?)', [userId, postId]);
+      return res.json({ favorited: true });
+    }
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: '즐겨찾기 처리 실패' });
+  }
+});
+
+// GET /api/posts?q=키워드&favorite=1
+// - 로그인 시 각 게시글에 isFavorited(0/1) 포함
+// - favorite=1 이면 "내 즐겨찾기만" 반환
+router.get('/', async (req, res) => {
+  const q = (req.query.q || '').trim().toLowerCase();
+  const favoriteOnly = String(req.query.favorite || '') === '1';
+  const userId = await resolveUserId(req);
+  try {
+    // 즐겨찾기 전용 탭: 로그인 필수
+    if (favoriteOnly) {
+      if (!userId) return res.status(401).json({ error: '로그인이 필요합니다.' });
+
+      let sql = `
+        SELECT 
+          p.id, p.title, p.content, p.author, p.studentId, p.createdAt, p.tag, 
+          p.likes, p.dislikes, p.comments, p.isBest,
+          1 AS isFavorited
+        FROM posts p
+        INNER JOIN favorites f
+                ON f.post_id = p.id AND f.user_id = ?
+      `;
+      const params = [userId];
+
+      if (q) {
+        sql += ` WHERE LOWER(p.title) LIKE ? OR LOWER(p.content) LIKE ? `;
+        params.push(`%${q}%`, `%${q}%`);
+      }
+
+      sql += ` ORDER BY p.isBest DESC, datetime(p.createdAt) DESC `;
+
+      const rows = await db.all(sql, params);
+
+      // 썸네일 매핑(기존 로직 재사용)
+      if (rows.length) {
+        const ids = rows.map(p => p.id);
+        const qMarks = ids.map(() => '?').join(',');
+        const thumbRows = await db.all(
+          `
+          SELECT pi.post_id, pi.url
+          FROM post_images pi
+          JOIN (
+            SELECT post_id, MIN(sort_order) AS min_sort
+            FROM post_images
+            WHERE post_id IN (${qMarks})
+            GROUP BY post_id
+          ) m
+          ON m.post_id = pi.post_id AND pi.sort_order = m.min_sort
+          `,
+          ids
+        );
+        const thumbMap = {};
+        for (const r of thumbRows) thumbMap[r.post_id] = r.url || null;
+        return res.json(rows.map(p => ({ ...p, thumbnail: thumbMap[p.id] || null })));
+      }
+      return res.json([]);
+    }
+
+    // 전체 목록: 로그인 시 isFavorited 조인
     let sql = `
       SELECT 
         p.id, p.title, p.content, p.author, p.studentId, p.createdAt, p.tag, 
         p.likes, p.dislikes, p.comments, p.isBest
+        ${userId ? ', CASE WHEN f.user_id IS NULL THEN 0 ELSE 1 END AS isFavorited' : ', 0 AS isFavorited'}
         ${userId ? ', r.reaction AS myReaction' : ''}
       FROM posts p
+      ${userId ? 'LEFT JOIN favorites f ON f.post_id = p.id AND f.user_id = ?' : ''}
       ${userId ? 'LEFT JOIN post_reactions r ON r.post_id = p.id AND r.user_id = ?' : ''}
     `;
     const params = [];
-    if (userId) params.push(userId);
+    if (userId) params.push(userId, userId);
 
     if (q) {
       sql += ` WHERE LOWER(p.title) LIKE ? OR LOWER(p.content) LIKE ? `;
@@ -95,9 +187,9 @@ router.get('/', async (req, res) => {
     sql += ` ORDER BY p.isBest DESC, datetime(p.createdAt) DESC `;
 
     const posts = await db.all(sql, params);
-    if (!posts.length) return res.json([]); // 빠른 반환
+    if (!posts.length) return res.json([]);
 
-    // 2) 각 게시글의 첫 이미지(최소 sort_order) 한 장씩 조회해서 썸네일 매핑
+    // 썸네일 매핑(기존 로직 유지)
     const ids = posts.map(p => p.id);
     const qMarks = ids.map(() => '?').join(',');
 
@@ -119,7 +211,6 @@ router.get('/', async (req, res) => {
     const thumbMap = {};
     for (const r of thumbRows) thumbMap[r.post_id] = r.url || null;
 
-    // 3) 응답: thumbnail 필드 추가
     const out = posts.map(p => ({
       ...p,
       thumbnail: thumbMap[p.id] || null
@@ -154,8 +245,7 @@ router.get('/best', async (req, res) => {
 // 게시글 상세 조회 (댓글은 별도 엔드포인트 사용 권장)
 router.get('/:id', async (req, res) => {
   const postId = Number(req.params.id);
-  const userId = getUserId(req);
-
+  const userId = await resolveUserId(req);
   try {
     const post = await db.get('SELECT * FROM posts WHERE id = ?', [postId]);
     if (!post) return res.status(404).json({ error: '게시글이 존재하지 않습니다.' });
@@ -192,7 +282,7 @@ router.get('/:id', async (req, res) => {
  */
 router.post('/:id/reaction', async (req, res) => {
   const postId = Number(req.params.id);
-  const userId = getUserId(req);
+  const userId = await resolveUserId(req);
   const { reaction } = req.body || {};
 
   if (!userId) return res.status(401).json({ error: '로그인이 필요합니다.' });
@@ -417,7 +507,7 @@ router.post('/', upload.array('images', 10), async (req, res) => {
     // 이미지 메타 저장
     for (let i = 0; i < files.length; i++) {
       const f = files[i];
-      const publicUrl = `/uploads/${f.filename}`; 
+      const publicUrl = `/uploads/${f.filename}`;
       await db.run(
         `INSERT INTO post_images (post_id, url, original_name, mime, size_bytes, sort_order, created_at)
          VALUES (?, ?, ?, ?, ?, ?, datetime('now'))`,
@@ -444,6 +534,7 @@ router.delete('/:id', ownerOnly, async (req, res) => {
     await db.run('DELETE FROM comments WHERE postId = ?', [postId]); // 트리거가 있으면 생략 가능
     await db.run('DELETE FROM post_reactions WHERE post_id = ?', [postId]);
     await db.run('DELETE FROM posts WHERE id = ?', [postId]);
+    await db.run('DELETE FROM favorites WHERE post_id = ?', [postId]);
     await db.exec('COMMIT');
     try { await updateBestPosts(); } catch (_) { }
     res.json({ ok: true });
