@@ -3,6 +3,37 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db/database'); // database.js 경로에 맞게 조정
 const updateBestPosts = require('../utils/updateBestPosts');
+const multer = require('multer');
+const fs = require('fs');
+const path = require('path');
+
+// 업로드 폴더 준비
+const uploadDir = path.join(__dirname, '..', 'uploads');
+if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+
+// 저장 규칙
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, uploadDir),
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    const base = path.basename(file.originalname, ext).replace(/[^a-zA-Z0-9_-]/g, '');
+    const name = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}_${base}${ext}`;
+    cb(null, name);
+  }
+});
+
+// 이미지 파일만
+const fileFilter = (req, file, cb) => {
+  if (file.mimetype && file.mimetype.startsWith('image/')) return cb(null, true);
+  cb(new Error('이미지 파일만 업로드할 수 있어요.'));
+};
+
+// 업로더 (파일당 8MB, 최대 10장)
+const upload = multer({
+  storage,
+  fileFilter,
+  limits: { fileSize: 8 * 1024 * 1024, files: 10 }
+});
 
 // --- 유틸: 로그인 사용자 식별 (데모용: x-user-id 헤더 사용) ---
 function getUserId(req) {
@@ -14,7 +45,7 @@ function getUserId(req) {
 
 function getAuthorMeta(req) {
   const name = (req.header('x-author-name') || req.body?.authorName || '').trim();
-  const sid  = (req.header('x-student-id')  || req.body?.studentId  || '').trim();
+  const sid = (req.header('x-student-id') || req.body?.studentId || '').trim();
   return { name, studentId: sid };
 }
 
@@ -42,7 +73,9 @@ async function ownerOnly(req, res, next) {
 router.get('/', async (req, res) => {
   const q = (req.query.q || '').trim().toLowerCase();
   const userId = getUserId(req);
+
   try {
+    // 1) 기본 목록 + (선택) 내 반응 조인
     let sql = `
       SELECT 
         p.id, p.title, p.content, p.author, p.studentId, p.createdAt, p.tag, 
@@ -53,13 +86,46 @@ router.get('/', async (req, res) => {
     `;
     const params = [];
     if (userId) params.push(userId);
+
     if (q) {
       sql += ` WHERE LOWER(p.title) LIKE ? OR LOWER(p.content) LIKE ? `;
       params.push(`%${q}%`, `%${q}%`);
     }
+
     sql += ` ORDER BY p.isBest DESC, datetime(p.createdAt) DESC `;
+
     const posts = await db.all(sql, params);
-    res.json(posts);
+    if (!posts.length) return res.json([]); // 빠른 반환
+
+    // 2) 각 게시글의 첫 이미지(최소 sort_order) 한 장씩 조회해서 썸네일 매핑
+    const ids = posts.map(p => p.id);
+    const qMarks = ids.map(() => '?').join(',');
+
+    const thumbRows = await db.all(
+      `
+      SELECT pi.post_id, pi.url
+      FROM post_images pi
+      JOIN (
+        SELECT post_id, MIN(sort_order) AS min_sort
+        FROM post_images
+        WHERE post_id IN (${qMarks})
+        GROUP BY post_id
+      ) m
+      ON m.post_id = pi.post_id AND pi.sort_order = m.min_sort
+      `,
+      ids
+    );
+
+    const thumbMap = {};
+    for (const r of thumbRows) thumbMap[r.post_id] = r.url || null;
+
+    // 3) 응답: thumbnail 필드 추가
+    const out = posts.map(p => ({
+      ...p,
+      thumbnail: thumbMap[p.id] || null
+    }));
+
+    res.json(out);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: '게시글 목록 불러오기 실패' });
@@ -94,16 +160,25 @@ router.get('/:id', async (req, res) => {
     const post = await db.get('SELECT * FROM posts WHERE id = ?', [postId]);
     if (!post) return res.status(404).json({ error: '게시글이 존재하지 않습니다.' });
 
+    // 내 반응
     let myReaction = null;
     if (userId) {
       const r = await db.get(
         'SELECT reaction FROM post_reactions WHERE user_id = ? AND post_id = ?',
         [userId, postId]
       );
-      myReaction = r?.reaction || null; // 'like' | 'dislike' | null
+      myReaction = r?.reaction || null;
     }
 
-    res.json({ ...post, myReaction });
+    // 이미지들
+    const images = await db.all(
+      `SELECT id, url, sort_order FROM post_images
+       WHERE post_id = ?
+       ORDER BY sort_order ASC`,
+      [postId]
+    );
+
+    res.json({ ...post, myReaction, images });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: '게시글 불러오기 실패' });
@@ -168,7 +243,7 @@ router.post('/:id/reaction', async (req, res) => {
       [userId, postId]
     );
 
-    try { await updateBestPosts(); } catch (_) {}
+    try { await updateBestPosts(); } catch (_) { }
 
     res.json({
       likes: updated?.likes ?? 0,
@@ -177,7 +252,7 @@ router.post('/:id/reaction', async (req, res) => {
     });
 
   } catch (err) {
-    try { await db.exec('ROLLBACK'); } catch (_) {}
+    try { await db.exec('ROLLBACK'); } catch (_) { }
     console.error(err);
     res.status(500).json({ error: '반응 처리 실패' });
   }
@@ -257,7 +332,7 @@ router.post('/:id/comments', async (req, res) => {
     await db.exec('COMMIT');
     res.status(201).json({ success: true });
   } catch (err) {
-    try { await db.exec('ROLLBACK'); } catch (_) {}
+    try { await db.exec('ROLLBACK'); } catch (_) { }
     console.error(err);
     res.status(500).json({ error: '댓글 작성 실패' });
   }
@@ -311,31 +386,52 @@ router.delete('/:postId/comments/:commentId', async (req, res) => {
     await db.exec('COMMIT');
     res.json({ success: true });
   } catch (err) {
-    try { await db.exec('ROLLBACK'); } catch (_) {}
+    try { await db.exec('ROLLBACK'); } catch (_) { }
     console.error(err);
     res.status(500).json({ error: '댓글 삭제 실패' });
   }
 });
 
 // 게시글 작성
-router.post('/', async (req, res) => {
-  const { title, content, tag, author, studentId } = req.body;
-
-  if (!title || !content || !tag || !author || !studentId) {
-    return res.status(400).json({ error: '입력값 누락' });
-  }
-
+router.post('/', upload.array('images', 10), async (req, res) => {
   try {
-    const createdAt = new Date().toISOString();
+    // 멀터가 파싱한 값들
+    const { title, content, tag, author, studentId } = req.body || {};
+    const files = req.files || [];
+
+    if (!title || !content || !tag || !author || !studentId) {
+      return res.status(400).json({ error: '입력값 누락' });
+    }
+
+    await db.exec('BEGIN');
+
     await db.run(
       `INSERT INTO posts (title, content, tag, author, studentId, createdAt)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [title, content, tag, author, studentId, createdAt]
+       VALUES (?, ?, ?, ?, ?, datetime('now','localtime'))`,
+      [title, content, tag, author, studentId]
     );
-    try { await updateBestPosts(); } catch (_) {}
-    res.status(201).json({ success: true });
+
+    // sqlite last insert id
+    const { id: postId } = await db.get(`SELECT last_insert_rowid() AS id`);
+
+    // 이미지 메타 저장
+    for (let i = 0; i < files.length; i++) {
+      const f = files[i];
+      const publicUrl = `/uploads/${f.filename}`; 
+      await db.run(
+        `INSERT INTO post_images (post_id, url, original_name, mime, size_bytes, sort_order, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, datetime('now'))`,
+        [postId, publicUrl, f.originalname, f.mimetype, f.size, i]
+      );
+    }
+
+    await db.exec('COMMIT');
+    try { await updateBestPosts(); } catch (_) { }
+
+    res.status(201).json({ success: true, id: postId, images: files.length });
   } catch (err) {
-    console.error('❌ 게시글 작성 오류:', err.message);
+    try { await db.exec('ROLLBACK'); } catch (_) { }
+    console.error('❌ 게시글 작성 오류:', err);
     res.status(500).json({ error: '게시글 작성 실패' });
   }
 });
@@ -349,10 +445,10 @@ router.delete('/:id', ownerOnly, async (req, res) => {
     await db.run('DELETE FROM post_reactions WHERE post_id = ?', [postId]);
     await db.run('DELETE FROM posts WHERE id = ?', [postId]);
     await db.exec('COMMIT');
-    try { await updateBestPosts(); } catch (_) {}
+    try { await updateBestPosts(); } catch (_) { }
     res.json({ ok: true });
   } catch (err) {
-    try { await db.exec('ROLLBACK'); } catch (_) {}
+    try { await db.exec('ROLLBACK'); } catch (_) { }
     console.error('삭제 실패:', err);
     res.status(500).json({ error: '게시글 삭제 실패' });
   }

@@ -20,6 +20,49 @@
       <!-- 본문 -->
       <div class="post-content">{{ post.content }}</div>
 
+      <!-- 이미지 그리드 -->
+      <div v-if="post.images && post.images.length" class="img-grid">
+        <img
+          v-for="(img, i) in post.images"
+          :key="img.id ?? i"
+          :src="imgUrl(img.url)"
+          alt=""
+          loading="lazy"
+          class="zoomable"
+          @error="onImgError"
+          @click.stop="openLightbox(i)"
+        />
+      </div>
+
+      <!-- ✅ 라이트박스 -->
+      <div v-if="lightbox.open" class="lightbox" @click.self="closeLightbox">
+        <button
+          class="lb-btn close"
+          @click.stop="closeLightbox"
+          aria-label="닫기"
+        >
+          ✕
+        </button>
+        <button class="lb-btn prev" @click.stop="prevImage" aria-label="이전">
+          ‹
+        </button>
+
+        <img
+          v-if="currentImage"
+          :src="imgUrl(currentImage.url)"
+          alt=""
+          class="lb-img"
+          @error="onImgError"
+        />
+
+        <button class="lb-btn next" @click.stop="nextImage" aria-label="다음">
+          ›
+        </button>
+        <div class="lb-counter">
+          {{ lightbox.index + 1 }} / {{ post.images.length }}
+        </div>
+      </div>
+
       <!-- 좋아요 / 싫어요 -->
       <div class="reaction-buttons">
         <button @click="toggleLike" :class="{ active: liked }">
@@ -33,7 +76,6 @@
       <!-- 댓글 영역 -->
       <div class="comments">
         <h2>댓글</h2>
-        <!-- posts.comments(집계)가 있으면 전달해서 상단 숫자에 표시, 없으면 자동으로 rootCount를 보여줌 -->
         <CommentList
           v-if="post && post.id"
           :postId="Number(post.id)"
@@ -53,6 +95,7 @@ import CommentList from "@/components/CommentList.vue";
 export default {
   name: "BoardDetailPage",
   components: { CommentList },
+
   data() {
     // 로그인 사용자
     let rawUser = {};
@@ -74,9 +117,13 @@ export default {
         id: null,
         title: "",
         content: "",
+        tag: "",
+        author: "",
+        studentId: "",
         likes: 0,
         dislikes: 0,
-        comments: [],
+        comments: 0, // ▶ 숫자(댓글 수)로 통일
+        images: [], // ▶ 이미지 배열
       },
       newComment: "",
       liked: false,
@@ -85,17 +132,48 @@ export default {
       userId, // 헤더에 실을 값
       loading: false,
       error: "",
+      lightbox: { open: false, index: 0 },
     };
+  },
+
+  computed: {
+    currentImage() {
+      const images = Array.isArray(this.post?.images) ? this.post.images : [];
+      const i = Number.isInteger(this.lightbox?.index)
+        ? this.lightbox.index
+        : 0;
+      return images[i] || null;
+    },
   },
 
   async mounted() {
     await this.fetchPost();
+    window.addEventListener("keydown", this.onKey);
+  },
+
+  beforeUnmount() {
+    window.removeEventListener("keydown", this.onKey);
+    if (this.lightbox.open) document.body.style.overflow = "";
   },
 
   methods: {
+    imgUrl(path) {
+      if (!path) return "";
+      if (/^https?:\/\//i.test(path)) return path;
+
+      const p = path.startsWith("/uploads/")
+        ? path
+        : path.startsWith("/")
+        ? path
+        : `/uploads/${path}`;
+
+      const base = process.env.VUE_APP_API_BASE || "";
+      return base ? `${base.replace(/\/$/, "")}${p}` : p;
+    },
+
     headersWithUser() {
       const headers = {};
-      if (this.userId != null) headers["x-user-id"] = this.userId; // 서버 미들웨어에서 req.user.id로 사용
+      if (this.userId != null) headers["x-user-id"] = this.userId;
       return headers;
     },
 
@@ -103,22 +181,38 @@ export default {
       try {
         this.loading = true;
         this.error = "";
-        const postId = this.$route.params.id;
 
-        const res = await fetch(`http://localhost:3000/api/posts/${postId}`, {
+        const postId = this.$route.params.id;
+        const res = await fetch(`/api/posts/${postId}`, {
           headers: this.headersWithUser(),
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
 
+        // ✅ 중복 키 없이 병합
         this.post = {
+          id: null,
+          title: "",
+          content: "",
+          tag: "",
+          author: "",
+          studentId: "",
           likes: 0,
           dislikes: 0,
-          comments: [],
-          ...data,
+          comments: 0,
+          images: [],
+          ...data, // 서버 응답으로 덮어쓰기
         };
 
-        // 서버가 내려준 현재 사용자 반응 상태 반영 ('like' | 'dislike' | null)
+        // ✅ 안전 보정
+        this.post.comments = Number.isFinite(Number(this.post.comments))
+          ? Number(this.post.comments)
+          : 0;
+        this.post.images = Array.isArray(this.post.images)
+          ? this.post.images
+          : [];
+
+        // 현재 사용자 반응 상태 반영
         this.liked = data.myReaction === "like";
         this.disliked = data.myReaction === "dislike";
       } catch (e) {
@@ -130,33 +224,27 @@ export default {
     },
 
     async setReaction(next) {
-      // next: 'like' | 'dislike' | 'none'
       if (!this.userId) {
         alert("⚠ 로그인 후 이용할 수 있어요.");
         return;
       }
       try {
-        const res = await fetch(
-          `http://localhost:3000/api/posts/${this.post.id}/reaction`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              ...this.headersWithUser(),
-            },
-            body: JSON.stringify({ reaction: next }),
-          }
-        );
+        const res = await fetch(`/api/posts/${this.post.id}/reaction`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...this.headersWithUser(),
+          },
+          body: JSON.stringify({ reaction: next }),
+        });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
 
-        // 서버 응답으로 일관 갱신
         this.post.likes = data.likes ?? this.post.likes;
         this.post.dislikes = data.dislikes ?? this.post.dislikes;
         this.liked = data.myReaction === "like";
         this.disliked = data.myReaction === "dislike";
 
-        // 목록 페이지 새로고침 유도 플래그
         sessionStorage.setItem("post_updated", "true");
       } catch (e) {
         console.error("반응 업데이트 실패:", e);
@@ -175,51 +263,77 @@ export default {
     },
 
     async submitComment() {
-      // 로그인 확인
       const user = JSON.parse(localStorage.getItem("user") || "{}");
       if (!user.name || !user.studentId) {
         alert("⚠ 로그인 후 댓글을 작성할 수 있습니다.");
         return;
       }
-
       if (!this.newComment.trim()) return;
 
       try {
-        const res = await fetch(
-          `http://localhost:3000/api/posts/${this.post.id}/comments`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              text: this.newComment.trim(),
-              author: user.name,
-              studentId: user.studentId,
-            }),
-          }
-        );
+        const res = await fetch(`/api/posts/${this.post.id}/comments`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            text: this.newComment.trim(),
+            author: user.name,
+            studentId: user.studentId,
+          }),
+        });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
-        this.post.comments.push({
-          text: this.newComment.trim(),
-          author: user.name,
-          studentId: user.studentId,
-          createdAt: new Date().toISOString(),
-        });
+        // 댓글 수만 증가(실제 목록은 CommentList에서 다시 로드)
+        this.post.comments = (this.post.comments || 0) + 1;
         this.newComment = "";
       } catch (e) {
         console.error("댓글 작성 실패:", e);
         alert("댓글 작성에 실패했어요.");
       }
     },
+
+    onImgError(e) {
+      e.target.style.opacity = 0.2;
+      e.target.alt = "이미지를 불러올 수 없습니다";
+    },
+
+    openLightbox(i = 0) {
+      const len = Array.isArray(this.post?.images)
+        ? this.post.images.length
+        : 0;
+      if (!len) return;
+      this.lightbox.index = Math.min(Math.max(i, 0), len - 1);
+      this.lightbox.open = true;
+      document.body.style.overflow = "hidden";
+    },
+    closeLightbox() {
+      this.lightbox.open = false;
+      document.body.style.overflow = "";
+    },
+    nextImage() {
+      const len = Array.isArray(this.post?.images)
+        ? this.post.images.length
+        : 0;
+      if (!len) return;
+      this.lightbox.index = (this.lightbox.index + 1) % len;
+    },
+    prevImage() {
+      const len = Array.isArray(this.post?.images)
+        ? this.post.images.length
+        : 0;
+      if (!len) return;
+      this.lightbox.index = (this.lightbox.index - 1 + len) % len;
+    },
+    onKey(e) {
+      if (!this.lightbox.open) return;
+      if (e.key === "Escape") this.closeLightbox();
+      else if (e.key === "ArrowRight") this.nextImage();
+      else if (e.key === "ArrowLeft") this.prevImage();
+    },
   },
 
-  // 라우트가 같은 컴포넌트 재사용될 수 있으니 감시
   watch: {
-    "$route.params.id": {
-      immediate: false,
-      handler() {
-        this.fetchPost();
-      },
+    "$route.params.id"() {
+      this.fetchPost();
     },
   },
 };
@@ -228,7 +342,7 @@ export default {
 <style scoped>
 .detail-page {
   max-width: 750px;
-  margin: 4rem auto 2rem; /* 상단바 공간 확보 */
+  margin: 4rem auto 2rem;
   padding: 1rem;
 }
 
@@ -287,8 +401,99 @@ export default {
   font-size: 1.05rem;
   white-space: pre-line;
   line-height: 1.6;
-  margin-bottom: 1.5rem;
+  margin-bottom: 1rem;
   color: #444;
+}
+
+/* ✅ 이미지 그리드 */
+.zoomable {
+  cursor: zoom-in;
+}
+
+.img-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 8px;
+  margin-bottom: 1.25rem;
+}
+
+.img-grid img {
+  width: 100%;
+  height: 180px;
+  object-fit: cover;
+  border-radius: 10px;
+  background: #f2f2f7;
+}
+
+/* 라이트박스 오버레이 */
+.lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  background: rgba(0, 0, 0, 0.85);
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.lb-img {
+  max-width: 92vw;
+  max-height: 92vh;
+  object-fit: contain;
+  border-radius: 8px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+  cursor: zoom-out;
+}
+
+.lb-btn {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  background: rgba(255, 255, 255, 0.15);
+  border: none;
+  color: #fff;
+  font-size: 36px;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  user-select: none;
+}
+
+.lb-btn:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.lb-btn.prev {
+  left: 16px;
+}
+
+.lb-btn.next {
+  right: 16px;
+}
+
+.lb-btn.close {
+  top: 16px;
+  right: 16px;
+  transform: none;
+  font-size: 24px;
+  width: 40px;
+  height: 40px;
+}
+
+.lb-counter {
+  position: absolute;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  color: #fff;
+  font-size: 13px;
+  opacity: 0.85;
+  background: rgba(0, 0, 0, 0.3);
+  padding: 4px 10px;
+  border-radius: 999px;
 }
 
 .reaction-buttons {
@@ -319,46 +524,6 @@ button.active {
   font-size: 1.3rem;
   margin-bottom: 1rem;
   color: #4a148c;
-}
-
-.comment {
-  background-color: #f8f8ff;
-  border-radius: 6px;
-  padding: 0.6rem 1rem;
-  margin-bottom: 0.5rem;
-}
-
-.no-comments {
-  color: #888;
-  margin-bottom: 1rem;
-}
-
-.comment-form input,
-.comment-form textarea {
-  width: 100%;
-  margin-bottom: 0.5rem;
-  padding: 0.6rem;
-  border-radius: 6px;
-  border: 1px solid #ccc;
-}
-
-.comment-form textarea {
-  min-height: 70px;
-  resize: none;
-}
-
-.comment-form button {
-  margin-top: 0.8rem;
-  background-color: #7b1fa2;
-  color: white;
-  padding: 0.5rem 1.5rem;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-}
-
-.comment-form button:hover {
-  background-color: #6a1b9a;
 }
 
 .loading {

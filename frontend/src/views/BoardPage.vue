@@ -47,40 +47,45 @@
       <div
         v-for="post in filteredPosts"
         :key="post.id"
-        class="post-card"
+        class="post-card row"
         @click="$router.push(`/board/${post.id}`)"
         style="cursor: pointer"
       >
-        <div class="post-header">
-          <div class="best-badge" v-if="post.isBest">BEST</div>
-          <div class="post-author">👤 {{ post.author }}</div>
-          <!-- ⋮ 버튼 -->
-          <button
-            v-if="canEdit(post)"
-            class="more-menu"
-            @click.stop="toggleMenu(post.id)"
-            aria-label="세부사항"
-          >
-            ⋮
-          </button>
-
-          <!-- 팝오버는 그대로(작성자일 때만 뜸) -->
-          <div
-            v-if="menuOpenId === post.id && canEdit(post)"
-            class="popover"
-            @click.stop
-          >
-            <button @click.stop="confirmDelete(post)">🗑️ 삭제</button>
+        <div class="col text">
+          <div class="post-header">
+            <div class="best-badge" v-if="post.isBest">BEST</div>
+            <div class="post-author">👤 {{ post.author }}</div>
+            <button
+              v-if="canEdit(post)"
+              class="more-menu"
+              @click.stop="toggleMenu(post.id)"
+              aria-label="세부사항"
+            >
+              ⋮
+            </button>
+            <div
+              v-if="menuOpenId === post.id && canEdit(post)"
+              class="popover"
+              @click.stop
+            >
+              <button @click.stop="confirmDelete(post)">🗑️ 삭제</button>
+            </div>
+          </div>
+          <div class="post-title">{{ post.title }}</div>
+          <div class="post-content">{{ truncate(post.content, 100) }}</div>
+          <div class="post-footer">
+            <div class="icon">👍 {{ post.likes || 0 }}</div>
+            <div class="icon">💬 {{ post.comments || 0 }}</div>
+            <div class="icon">👎 {{ post.dislikes || 0 }}</div>
           </div>
         </div>
-        <div class="post-title">{{ post.title }}</div>
-        <div class="post-content">
-          {{ truncate(post.content, 100) }}
-        </div>
-        <div class="post-footer">
-          <div class="icon">👍 {{ post.likes || 0 }}</div>
-          <div class="icon">💬 {{ post.comments || 0 }}</div>
-          <div class="icon">👎 {{ post.dislikes || 0 }}</div>
+        <div class="col thumb-col" v-if="post.thumbnail">
+          <img
+            :src="imgUrl(post.thumbnail)"
+            alt="thumb"
+            class="thumb-small"
+            loading="lazy"
+          />
         </div>
       </div>
     </div>
@@ -97,7 +102,7 @@ export default {
       selectedTag: "",
       searchKeyword: "",
       posts: [],
-      menuOpenId: null, // 현재 열린 메뉴의 post.id
+      menuOpenId: null,
     };
   },
   mounted() {
@@ -110,8 +115,6 @@ export default {
     } else {
       this.fetchPosts();
     }
-
-    // 카드 밖 클릭 시 팝오버 닫기
     window.addEventListener("click", this.closeMenu);
   },
   beforeUnmount() {
@@ -136,7 +139,19 @@ export default {
     },
   },
   methods: {
-    // 작성자 판정: author + studentId
+    imgUrl(path) {
+      if (!path) return "";
+      if (/^https?:\/\//i.test(path)) return path;
+
+      let p = path.startsWith("/uploads/")
+        ? path
+        : path.startsWith("/")
+        ? path
+        : `/uploads/${path}`;
+
+      const base = process.env.VUE_APP_API_BASE || "";
+      return base ? `${base.replace(/\/$/, "")}${p}` : p;
+    },
     canEdit(post) {
       const norm = (v) => String(v ?? "").trim();
       const uName = norm(this.user?.name),
@@ -145,11 +160,10 @@ export default {
         pSid = norm(post?.studentId);
       if (!uName || !pName) return false;
       if (uName === pName && uSid && pSid && uSid === pSid) return true;
-      if (uName === pName && (!uSid || !pSid)) return true; // 학번 비어있는 옛글 예외
+      if (uName === pName && (!uSid || !pSid)) return true;
       return false;
     },
     toggleMenu(id) {
-      console.log("kebab clicked for", id); // 눌림 확인
       this.menuOpenId = this.menuOpenId === id ? null : id;
     },
     closeMenu() {
@@ -176,7 +190,6 @@ export default {
         alert("삭제 실패: " + err.message);
       }
     },
-
     selectTag(tag) {
       this.selectedTag = tag;
     },
@@ -187,6 +200,7 @@ export default {
           `/api/posts${q ? `?q=${encodeURIComponent(q)}` : ""}`
         );
         const data = await res.json();
+        // 서버가 thumbnail 필드를 추가로 줌
         this.posts = Array.isArray(data) ? data : data.posts;
       } catch (err) {
         console.error("게시글 불러오기 실패:", err);
@@ -252,13 +266,13 @@ export default {
   margin: 0 auto 12px;
   display: flex;
   gap: 8px;
-  flex-wrap: nowrap; /* ✅ 한 줄 강제 */
-  align-items: center; /* 수직 가운데 정렬 */
+  flex-wrap: nowrap;
+  align-items: center;
 }
 
 .search-box input {
-  flex: 1; /* ✅ 남은 공간을 모두 차지 */
-  min-width: 0; /* ✅ 너무 작아질 때 깨짐 방지 */
+  flex: 1;
+  min-width: 0;
   height: 42px;
   padding: 0 14px;
   border-radius: 30px;
@@ -268,7 +282,7 @@ export default {
 }
 
 .search-btn {
-  flex-shrink: 0; /* ✅ 버튼은 줄어들지 않음 */
+  flex-shrink: 0;
   height: 42px;
   padding: 0 16px;
   border-radius: 30px;
@@ -283,9 +297,9 @@ export default {
   background-color: #7c52e1;
 }
 
-/* 필터 버튼 개선 */
+/* 필터 */
 .category-filter {
-  justify-content: flex-start;
+  justify-content: center;
   gap: 8px;
   margin: 8px auto 18px;
   max-width: 820px;
@@ -320,7 +334,7 @@ export default {
   background: #c3b9f7;
 }
 
-/* 글쓰기 버튼 (오른쪽 하단 고정) */
+/* 글쓰기 버튼 */
 .write-button {
   position: fixed;
   bottom: max(16px, env(safe-area-inset-bottom) + 12px);
@@ -342,7 +356,7 @@ export default {
   background: #7c52e1;
 }
 
-/* 게시글 목록 */
+/* 목록 */
 .post-list {
   display: flex;
   flex-direction: column;
@@ -351,17 +365,9 @@ export default {
   margin: 0 auto;
 }
 
-@media (min-width: 720px) {
-  .post-list {
-    grid-template-columns: 1fr 1fr;
-  }
-
-  /* 태블릿 2열 */
-}
-
-/* 카드 디자인 개선 */
+/* 카드 */
 .post-card {
-  background: #ffffff;
+  background: #fff;
   border-radius: 16px;
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
   padding: 1.2rem;
@@ -372,6 +378,34 @@ export default {
 
 .post-card:hover {
   transform: translateY(-2px);
+}
+
+.post-card.row {
+  display: grid;
+  grid-template-columns: 1fr 110px;
+  /* 왼쪽 내용 / 오른쪽 썸네일 */
+  gap: 12px;
+  align-items: center;
+}
+
+.thumb-col {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.thumb-small {
+  width: 100px;
+  height: 100px;
+  object-fit: cover;
+  border-radius: 12px;
+  background: #f2f2f7;
+}
+
+.thumb {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 
 .post-header {
@@ -427,16 +461,12 @@ export default {
 }
 
 .post-content {
-  /* 표준 + 웹킷 line-clamp */
   display: -webkit-box;
   overflow: hidden;
   line-height: 1.5;
   line-clamp: 3;
-  /* Lint 만족용 표준 */
   -webkit-line-clamp: 3;
-  /* 실제 동작 */
   -webkit-box-orient: vertical;
-
   font-size: clamp(13px, 3.6vw, 15px);
   color: #444;
   word-break: break-word;

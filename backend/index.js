@@ -3,6 +3,7 @@ const app = express();
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
 const session = require('express-session');
+const path = require('path');
 
 // DB 연결 (경로 수정!)
 const db = require('./db/database.js');
@@ -39,6 +40,7 @@ app.use('/api/meals', mealsRouter);
 app.use('/api/timetable', timetableRouter);
 app.use('/api', authRouter);
 app.use('/api/posts', postsRouter); // ✅ 게시글 라우터 경로 추가
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // 서버 실행
 const PORT = 3000;

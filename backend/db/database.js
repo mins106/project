@@ -191,6 +191,25 @@ async function ensureSchema() {
     await db.run(`CREATE INDEX idx_feedback_user ON dish_feedback(user_id)`);
   }
 
+  await db.run(`
+    CREATE TABLE IF NOT EXISTS post_images (
+      id            INTEGER PRIMARY KEY AUTOINCREMENT,
+      post_id       INTEGER NOT NULL,
+      url           TEXT    NOT NULL,
+      original_name TEXT    NOT NULL,
+      mime          TEXT    NOT NULL,
+      size_bytes    INTEGER NOT NULL,
+      width         INTEGER,
+      height        INTEGER,
+      sort_order    INTEGER NOT NULL DEFAULT 0,
+      created_at    TEXT    NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY(post_id) REFERENCES posts(id) ON DELETE CASCADE
+    )
+  `);
+
+  await db.run(`CREATE INDEX IF NOT EXISTS idx_post_images_post_id ON post_images(post_id)`);
+  await db.run(`CREATE INDEX IF NOT EXISTS idx_post_images_post_id_order ON post_images(post_id, sort_order)`);
+
   console.log('✅ 스키마/마이그레이션 완료');
 }
 
