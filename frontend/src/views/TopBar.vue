@@ -11,6 +11,7 @@
     <div class="right-links">
       <router-link to="/">홈</router-link> ·
       <template v-if="isLoggedIn">
+        <router-link to="/me">내 정보</router-link> ·
         <a href="#" @click="logout">로그아웃</a>
       </template>
       <template v-else>

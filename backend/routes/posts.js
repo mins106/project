@@ -3,6 +3,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db/database'); // database.js 경로에 맞게 조정
 const updateBestPosts = require('../utils/updateBestPosts');
+const requireAuth = require('../middlewares/requireAuth');
 const multer = require('multer');
 const fs = require('fs');
 const path = require('path');
@@ -35,48 +36,19 @@ const upload = multer({
   limits: { fileSize: 8 * 1024 * 1024, files: 10 }
 });
 
-// --- 로그인 사용자 식별 (세션/헤더 모두 지원) ---
 async function resolveUserId(req) {
-  // 1) 세션 우선 (auth.js에서 로그인 시 req.session.user 심음)
-  if (req.session?.user?.id) return req.session.user.id;
-
-  // 2) 예전 호환: x-user-id (숫자)도 허용
-  const raw = req.header('x-user-id');
-  const n = Number(raw);
-  if (Number.isFinite(n) && n > 0) return n;
-
-  // 3) 우리가 원하는 방식: x-student-id 로 users.id 조회
-  const sid =
-    (req.header('x-student-id') || req.body?.studentId || '').trim();
-  if (sid) {
-    const row = await db.get(
-      'SELECT id FROM users WHERE student_id = ?',
-      [sid]
-    );
-    if (row?.id) return row.id;
-  }
-
-  return null;
-}
-
-function getAuthorMeta(req) {
-  const name = (req.header('x-author-name') || req.body?.authorName || '').trim();
-  const sid = (req.header('x-student-id') || req.body?.studentId || '').trim();
-  return { name, studentId: sid };
+  const u = req.user || req.session?.user;
+  return u?.id || null;
 }
 
 async function ownerOnly(req, res, next) {
   try {
+    const me = req.user || req.session?.user;
+    if (!me?.student_id) return res.status(401).json({ error: '로그인이 필요합니다.' });
     const postId = Number(req.params.id);
-    const row = await db.get('SELECT author, studentId FROM posts WHERE id = ?', [postId]);
+    const row = await db.get('SELECT studentId FROM posts WHERE id = ?', [postId]);
     if (!row) return res.status(404).json({ error: '게시글이 존재하지 않습니다.' });
-
-    const { name, studentId } = getAuthorMeta(req);
-    if (!name || !studentId) return res.status(401).json({ error: '인증 정보가 없습니다.' });
-
-    if (row.author !== name || row.studentId !== studentId) {
-      return res.status(403).json({ error: '작성자만 가능합니다.' });
-    }
+    if (row.studentId !== me.student_id) return res.status(403).json({ error: '작성자만 가능합니다.' });
     next();
   } catch (e) {
     console.error(e);
@@ -84,9 +56,9 @@ async function ownerOnly(req, res, next) {
   }
 }
 
-router.post('/:id/favorite', async (req, res) => {
+router.post('/:id/favorite', requireAuth, async (req, res) => {
   const postId = Number(req.params.id);
-  const userId = await resolveUserId(req);
+  const userId = (req.user || req.session?.user)?.id;
   if (!userId) return res.status(401).json({ error: '로그인이 필요합니다.' });
 
   try {
@@ -282,7 +254,7 @@ router.get('/:id', async (req, res) => {
  */
 router.post('/:id/reaction', async (req, res) => {
   const postId = Number(req.params.id);
-  const userId = await resolveUserId(req);
+  const userId = (req.user || req.session?.user)?.id;
   const { reaction } = req.body || {};
 
   if (!userId) return res.status(401).json({ error: '로그인이 필요합니다.' });
@@ -394,10 +366,11 @@ router.get('/:id/comments', async (req, res) => {
  * POST /api/posts/:id/comments
  * body: { text, author?, studentId?, parentId? }
  */
-router.post('/:id/comments', async (req, res) => {
+router.post('/:id/comments', requireAuth, async (req, res) => {
   const postId = Number(req.params.id);
-  const { text, author = '익명', studentId = '', parentId = null } = req.body || {};
-
+  const { text, parentId = null } = req.body || {};
+  const me = req.user || req.session?.user;
+  if (!me?.id) return res.status(401).json({ error: '로그인이 필요합니다.' });
   if (!text || text.trim() === '') {
     return res.status(400).json({ error: '댓글이 비어 있습니다.' });
   }
@@ -408,7 +381,7 @@ router.post('/:id/comments', async (req, res) => {
     await db.run(
       `INSERT INTO comments (postId, parentId, text, author, studentId, createdAt)
        VALUES (?, ?, ?, ?, ?, datetime('now','localtime'))`,
-      [postId, parentId, text.trim(), author, studentId]
+      [postId, parentId, text.trim(), me.name || '익명', me.student_id || '']
     );
 
     // 집계 컬럼 posts.comments 는 "총 댓글 수" 기준으로 재계산 (CASCADE 삭제 등에 안전)
@@ -483,10 +456,12 @@ router.delete('/:postId/comments/:commentId', async (req, res) => {
 });
 
 // 게시글 작성
-router.post('/', upload.array('images', 10), async (req, res) => {
+router.post('/', requireAuth, upload.array('images', 10), async (req, res) => {
+  const me = req.user || req.session?.user;
+  if (!me?.student_id) return res.status(401).json({ error: '로그인이 필요합니다.' });
   try {
     // 멀터가 파싱한 값들
-    const { title, content, tag, author, studentId } = req.body || {};
+    const { title, content, tag } = req.body || {};
     const files = req.files || [];
 
     if (!title || !content || !tag || !author || !studentId) {
@@ -498,7 +473,7 @@ router.post('/', upload.array('images', 10), async (req, res) => {
     await db.run(
       `INSERT INTO posts (title, content, tag, author, studentId, createdAt)
        VALUES (?, ?, ?, ?, ?, datetime('now','localtime'))`,
-      [title, content, tag, author, studentId]
+      [title, content, tag, me.name || '익명', me.student_id]
     );
 
     // sqlite last insert id
@@ -527,7 +502,7 @@ router.post('/', upload.array('images', 10), async (req, res) => {
 });
 
 // 삭제
-router.delete('/:id', ownerOnly, async (req, res) => {
+router.delete('/:id', requireAuth, ownerOnly, async (req, res) => {
   const postId = Number(req.params.id);
   try {
     await db.exec('BEGIN');

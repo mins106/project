@@ -9,6 +9,7 @@ import BoardPage from "@/views/BoardPage.vue";
 import BoardWritePage from "@/views/BoardWritePage.vue";
 import BoardDetailPage from "@/views/BoardDetailPage.vue";
 import MealDetailPage from "@/views/MealDetailPage.vue";
+import MyPage from "@/views/MyPage.vue";
 
 const routes = [
   {
@@ -72,6 +73,11 @@ const routes = [
     name: "BoardDetail",
     component: BoardDetailPage,
     meta: { hideTopBar: true },
+  },
+  {
+    path: "/me",
+    name: "MyPage",
+    component: MyPage,
   },
 ];
 

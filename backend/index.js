@@ -35,6 +35,7 @@ const timetableRouter = require('./routes/timetable');
 const authRouter = require('./routes/auth');
 const postsRouter = require('./routes/posts'); // ✅ 게시글 라우터 추가
 const favoritesRoutes = require('./routes/favorites');
+const meRoutes = require('./routes/me')
 
 // 라우터 연결
 app.use('/api/meals', mealsRouter);
@@ -43,6 +44,9 @@ app.use('/api', authRouter);
 app.use('/api/posts', postsRouter); // ✅ 게시글 라우터 경로 추가
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use('/api', favoritesRoutes);
+app.use('/api/me', meRoutes)
+
+app.get('/api/health', (_req, res) => res.json({ ok: true }))
 
 // 서버 실행
 const PORT = 3000;

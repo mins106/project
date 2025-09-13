@@ -91,26 +91,20 @@
 
 <script>
 import CommentList from "@/components/CommentList.vue";
+import api from "@/utils/api";
 
 export default {
   name: "BoardDetailPage",
   components: { CommentList },
 
   data() {
-    // 로그인 사용자
+    // 로그인 사용자(UX 용도)
     let rawUser = {};
     try {
       rawUser = JSON.parse(localStorage.getItem("user")) || {};
-    } catch (_) {
-      rawUser = {};
+    } catch (e) {
+      rawUser = {}; /* noop */
     }
-
-    // 서버가 x-user-id를 필요로 하므로, user.id가 없으면 임시로 studentId 사용
-    const userId = Number.isFinite(Number(rawUser.id))
-      ? Number(rawUser.id)
-      : rawUser.studentId
-      ? Number(rawUser.studentId)
-      : null;
 
     return {
       post: {
@@ -122,14 +116,13 @@ export default {
         studentId: "",
         likes: 0,
         dislikes: 0,
-        comments: 0, // ▶ 숫자(댓글 수)로 통일
-        images: [], // ▶ 이미지 배열
+        comments: 0,
+        images: [],
       },
       newComment: "",
       liked: false,
       disliked: false,
       user: rawUser,
-      userId, // 헤더에 실을 값
       loading: false,
       error: "",
       lightbox: { open: false, index: 0 },
@@ -171,23 +164,13 @@ export default {
       return base ? `${base.replace(/\/$/, "")}${p}` : p;
     },
 
-    headersWithUser() {
-      const headers = {};
-      if (this.userId != null) headers["x-user-id"] = this.userId;
-      return headers;
-    },
-
     async fetchPost() {
       try {
         this.loading = true;
         this.error = "";
 
         const postId = this.$route.params.id;
-        const res = await fetch(`/api/posts/${postId}`, {
-          headers: this.headersWithUser(),
-        });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
+        const { data } = await api.get(`/api/posts/${postId}`);
 
         // ✅ 중복 키 없이 병합
         this.post = {
@@ -201,7 +184,7 @@ export default {
           dislikes: 0,
           comments: 0,
           images: [],
-          ...data, // 서버 응답으로 덮어쓰기
+          ...data, // 서버 응답 덮어쓰기
         };
 
         // ✅ 안전 보정
@@ -212,11 +195,16 @@ export default {
           ? this.post.images
           : [];
 
-        // 현재 사용자 반응 상태 반영
+        // 현재 사용자 반응 상태
         this.liked = data.myReaction === "like";
         this.disliked = data.myReaction === "dislike";
       } catch (e) {
         console.error("게시글 불러오기 실패:", e);
+        if (e?.response?.status === 401) {
+          alert("로그인이 필요합니다.");
+          this.$router.push("/login");
+          return;
+        }
         this.error = "게시글을 불러오지 못했습니다.";
       } finally {
         this.loading = false;
@@ -224,70 +212,52 @@ export default {
     },
 
     async setReaction(next) {
-      if (!this.userId) {
-        alert("⚠ 로그인 후 이용할 수 있어요.");
-        return;
-      }
       try {
-        const res = await fetch(`/api/posts/${this.post.id}/reaction`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...this.headersWithUser(),
-          },
-          body: JSON.stringify({ reaction: next }),
+        const { data } = await api.post(`/api/posts/${this.post.id}/reaction`, {
+          reaction: next,
         });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
-
         this.post.likes = data.likes ?? this.post.likes;
         this.post.dislikes = data.dislikes ?? this.post.dislikes;
         this.liked = data.myReaction === "like";
         this.disliked = data.myReaction === "dislike";
-
         sessionStorage.setItem("post_updated", "true");
       } catch (e) {
         console.error("반응 업데이트 실패:", e);
-        alert("처리 중 문제가 발생했습니다. 잠시 후 다시 시도해 주세요.");
+        if (e?.response?.status === 401) {
+          alert("로그인이 필요합니다.");
+          this.$router.push("/login");
+        } else {
+          alert("처리 중 문제가 발생했습니다. 잠시 후 다시 시도해 주세요.");
+        }
       }
     },
 
     toggleLike() {
-      const next = this.liked ? "none" : "like";
-      this.setReaction(next);
+      this.setReaction(this.liked ? "none" : "like");
     },
 
     toggleDislike() {
-      const next = this.disliked ? "none" : "dislike";
-      this.setReaction(next);
+      this.setReaction(this.disliked ? "none" : "dislike");
     },
 
     async submitComment() {
-      const user = JSON.parse(localStorage.getItem("user") || "{}");
-      if (!user.name || !user.studentId) {
-        alert("⚠ 로그인 후 댓글을 작성할 수 있습니다.");
-        return;
-      }
       if (!this.newComment.trim()) return;
 
       try {
-        const res = await fetch(`/api/posts/${this.post.id}/comments`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            text: this.newComment.trim(),
-            author: user.name,
-            studentId: user.studentId,
-          }),
+        await api.post(`/api/posts/${this.post.id}/comments`, {
+          text: this.newComment.trim(),
         });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-
-        // 댓글 수만 증가(실제 목록은 CommentList에서 다시 로드)
+        // 댓글 수만 증가(목록은 CommentList에서 갱신)
         this.post.comments = (this.post.comments || 0) + 1;
         this.newComment = "";
       } catch (e) {
         console.error("댓글 작성 실패:", e);
-        alert("댓글 작성에 실패했어요.");
+        if (e?.response?.status === 401) {
+          alert("로그인이 필요합니다.");
+          this.$router.push("/login");
+        } else {
+          alert("댓글 작성에 실패했어요.");
+        }
       }
     },
 
@@ -305,10 +275,12 @@ export default {
       this.lightbox.open = true;
       document.body.style.overflow = "hidden";
     },
+
     closeLightbox() {
       this.lightbox.open = false;
       document.body.style.overflow = "";
     },
+
     nextImage() {
       const len = Array.isArray(this.post?.images)
         ? this.post.images.length
@@ -316,6 +288,7 @@ export default {
       if (!len) return;
       this.lightbox.index = (this.lightbox.index + 1) % len;
     },
+
     prevImage() {
       const len = Array.isArray(this.post?.images)
         ? this.post.images.length
@@ -323,6 +296,7 @@ export default {
       if (!len) return;
       this.lightbox.index = (this.lightbox.index - 1 + len) % len;
     },
+
     onKey(e) {
       if (!this.lightbox.open) return;
       if (e.key === "Escape") this.closeLightbox();
