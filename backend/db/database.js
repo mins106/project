@@ -185,13 +185,13 @@ async function ensureSchema() {
   await db.run(`
     CREATE TABLE IF NOT EXISTS dish_feedback (
       id            INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id       INTEGER NOT NULL,                 -- users.id
-      meal_dish_id  INTEGER NOT NULL,                 -- meal_dishes.id
-      like_flag     INTEGER,                          -- -1/0/+1
-      salt_level    INTEGER,                          -- -1/0/+1/+2
-      temp_level    INTEGER,                          -- -1/0/+1
-      portion_level INTEGER,                          -- -1/0/+1
-      texture_level INTEGER,                          -- -1/0/+1
+      user_id       INTEGER NOT NULL,
+      meal_dish_id  INTEGER NOT NULL,
+      like_flag     INTEGER,
+      salt_level    INTEGER,
+      temp_level    INTEGER,
+      portion_level INTEGER,
+      texture_level INTEGER,
       keep_text     TEXT,
       improve_text  TEXT,
       created_at    TEXT DEFAULT CURRENT_TIMESTAMP,

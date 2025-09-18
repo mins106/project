@@ -12,36 +12,38 @@
           <h3 class="dp-title">{{ d.dish }}</h3>
         </div>
 
-        <!-- 비율(숫자만) -->
-        <div class="dp-ratio" v-if="statFor(d.mealDishId)">
-          <div class="dp-ratio-legend">
-            <span>👍 {{ statFor(d.mealDishId).ratio.like }}%</span>
-            <span>😐 {{ statFor(d.mealDishId).ratio.neutral }}%</span>
-            <span>👎 {{ statFor(d.mealDishId).ratio.dislike }}%</span>
-          </div>
-        </div>
+        <!-- 👍😐👎 비율 -->
+        <!-- 👍😐👎 비율 + 세부평균칩 같이 묶기 -->
+        <div v-if="statFor(d.mealDishId)" class="dp-stats">
+          <span title="좋아요 비율"
+            >👍 {{ statFor(d.mealDishId).ratio.like }}%</span
+          >
+          <span title="보통 비율"
+            >😐 {{ statFor(d.mealDishId).ratio.neutral }}%</span
+          >
+          <span title="싫어요 비율"
+            >👎 {{ statFor(d.mealDishId).ratio.dislike }}%</span
+          >
 
-        <!-- ✅ 미니 미터 -->
-        <div v-if="statFor(d.mealDishId)" class="dp-meters">
-          <MetricPill
+          <MiniStat
             icon="🧂"
-            label="짠맛"
-            :value="statFor(d.mealDishId).averages.salt"
+            :value="toScore5(statFor(d.mealDishId).averages.salt)"
+            help="짠맛 (평균 1~5)"
           />
-          <MetricPill
+          <MiniStat
             icon="🥄"
-            label="양"
-            :value="statFor(d.mealDishId).averages.portion"
+            :value="toScore5(statFor(d.mealDishId).averages.portion)"
+            help="양 (평균 1~5)"
           />
-          <MetricPill
+          <MiniStat
             icon="🌡️"
-            label="온도"
-            :value="statFor(d.mealDishId).averages.temp"
+            :value="toScore5(statFor(d.mealDishId).averages.temp)"
+            help="온도 (평균 1~5)"
           />
-          <MetricPill
+          <MiniStat
             icon="🌶️"
-            label="맵기"
-            :value="statFor(d.mealDishId).averages.texture"
+            :value="toScore5(statFor(d.mealDishId).averages.texture)"
+            help="맵기 (평균 1~5)"
           />
         </div>
 
@@ -61,15 +63,11 @@
 
 <script>
 import MealReviewCard from "@/components/MealReviewCard.vue";
-import MetricPill from "@/components/MetricPill.vue";
+import MiniStat from "@/components/MiniStat.vue";
 
 export default {
   name: "DayMealPanel",
-  components: {
-    MealReviewCard,
-    // 소형 지표 컴포넌트
-    MetricPill,
-  },
+  components: { MealReviewCard, MiniStat },
   props: { dateYmd: { type: String, required: true } },
   data() {
     return { loading: true, dishes: [], summary: [], error: "" };
@@ -102,6 +100,11 @@ export default {
     statFor(id) {
       return this.summary.find((s) => s.mealDishId === id);
     },
+    // -1~1 평균값을 1~5로 보이게 변환 (-1→1, 0→3, 1→5)
+    toScore5(avg) {
+      if (avg === null || avg === undefined || Number.isNaN(+avg)) return null;
+      return +avg * 2 + 3;
+    },
   },
 };
 </script>
@@ -123,7 +126,6 @@ export default {
   margin-bottom: 16px;
 }
 
-/* 헤더 */
 .dp-header {
   display: flex;
   align-items: center;
@@ -138,7 +140,6 @@ export default {
   letter-spacing: 0.2px;
 }
 
-/* 비율(숫자만) */
 .dp-ratio {
   margin: 10px 0 6px;
 }
@@ -151,120 +152,31 @@ export default {
   margin-top: 6px;
 }
 
-/* 미터 */
-.dp-meters {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-  margin: 10px 0 12px;
-}
-
-@media (max-width: 480px) {
-  .dp-meters {
-    grid-template-columns: 1fr;
-  }
-}
-
-.pill {
-  position: relative;
+.dp-stats {
   display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 8px 0 12px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #1e2a44;
+}
+.dp-stats span {
+  display: inline-flex;
   align-items: center;
+  gap: 4px;
+  background: #f7f9ff;
+  padding: 4px 10px;
+  border-radius: 8px;
+}
+
+/* 이모지 칩 행 */
+.dp-minis {
+  display: flex;
+  flex-wrap: wrap;
   gap: 8px;
-  padding: 10px 12px;
-  border-radius: 14px;
-  border: 1px solid var(--bd, #e6eaf2);
-  background: var(--bg, #f7f9ff);
-  box-shadow: 0 4px 10px rgba(33, 56, 125, 0.06) inset;
+  margin: 8px 0 12px;
 }
-
-.pill-icon {
-  font-size: 16px;
-  line-height: 1;
-}
-
-.pill-label {
-  font-weight: 800;
-  color: #1e2a44;
-}
-
-.pill-value {
-  margin-left: auto;
-  font-weight: 800;
-  color: #1e2a44;
-}
-
-/* 트랙 */
-.track {
-  position: relative;
-  height: 6px;
-  width: 120px;
-  margin-left: 8px;
-  border-radius: 999px;
-  background: #eef2f8;
-}
-
-.dot {
-  position: absolute;
-  top: 50%;
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  transform: translate(-50%, -50%);
-  background: currentColor;
-  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.9);
-}
-
-.tick {
-  position: absolute;
-  top: 50%;
-  width: 2px;
-  height: 6px;
-  background: #d8deea;
-  transform: translateY(-50%);
-  opacity: 0.8;
-}
-
-.tick.t-0 {
-  left: 0%;
-}
-
-.tick.t-mid {
-  left: 50%;
-}
-
-.tick.t-1 {
-  right: 0%;
-}
-
-/* 색 테마 (요구사항 반영) */
-.pill.good {
-  --bg: #e8f6ef;
-  --bd: #cfead9;
-  color: #1c6c3d;
-}
-
-/* 0 */
-.pill.mid {
-  --bg: #fdf5df;
-  --bd: #ffe2a9;
-  color: #7a4e12;
-}
-
-/* -1~1 사이(0 제외) */
-.pill.bad {
-  --bg: #ffe8e8;
-  --bd: #ffd3d3;
-  color: #8a2020;
-}
-
-/* <=-1, >=1 */
-.pill.neutral {
-  --bg: #f3f5f9;
-  --bd: #e6eaf2;
-  color: #6a748b;
-}
-
-/* 값 없음 */
 
 .dp-review {
   margin-top: 10px;
